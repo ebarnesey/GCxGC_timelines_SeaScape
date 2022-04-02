@@ -960,7 +960,8 @@ quant_sum_sample <- M_t_analyte_withIS.q %>%
 quant_sum_sample %>% 
   ggplot(aes(x = r_date, y = .001*tot_org_ng_cm3, color = "GCxGC Measured"))+
   geom_point()+
-  geom_point(aes(x = r_date, y = OM_FB_corrected, color = "Davis Total Organic Mass"))
+  geom_point(aes(x = r_date, y = OM_FB_corrected, color = "Davis Total Organic Mass"))+
+  ylim(0, 3.5)
 
 quant_sum_sample %>% 
   ggplot(aes(x = r_date, y = .001*tot_org_ng_cm3, color = "GCxGC Measured"))+
@@ -970,6 +971,11 @@ quant_sum_sample %>%
 quant_sum_sample %>% 
   ggplot(aes(x = r_date, y = frac_fb_rem))+
   geom_point()
+
+quant_sum_sample %>% 
+  ggplot()+
+  geom_boxplot(aes(x = "x", y = frac_fb_rem))+
+  ylim(0, 1)
 
 summary(quant_sum_sample$frac_fb_rem)
 
@@ -1553,6 +1559,19 @@ Now comparing speciated biology time series to the cluster time series
 bio_spec <- read_csv("Read_Files/Speciated_Biology_Time_Series_scaled.csv") %>% 
   mutate(r_date =    mdy_hm(SS_startdate))
 
+bs.p <- bio_spec %>% 
+  ggplot()+
+  geom_line(aes(x = r_date, y= Mixed_Aggregates, color = "Mixed_Aggregates"))+
+  geom_line(aes(x = r_date, y= Diatom_Dominated_Aggregates, color = "Diatom_Dom_Aggregates"))+
+  geom_line(aes(x = r_date, y= Dinoflagellates, color = "Dinoflagellates"))+
+  geom_line(aes(x = r_date, y= Microzooplankton, color = "Mzoo"))+
+  geom_line(aes(x = r_date, y= Diatoms, color = "Diatoms"))+
+  geom_line(aes(x = r_date, y= Haptophytes, color = "Haptophytes"))
+
+bs.p
+
+bs.p + 
+  ylim(0, 400000)
 
 pbio2<- ggplot()+
   geom_line(data = bio_spec, aes(x = r_date, y = (Diatom_Dominated_Aggregates_pct*10)-2), color = "black")+
@@ -1586,20 +1605,81 @@ bio.cor <- cor(bio_corr)
 
 write.csv(bio.cor, "correlation_inspection.csv")
 
+
+
 bio.cor.info <- read_csv("correlation_inspection_ed2.csv")%>% 
   left_join(cluster_assignments) %>% 
   left_join(h.clust.factors) %>% 
   left_join(SeaScape_normalized_cumsum.q) %>% 
   left_join(compiled_comp_info) 
 
+
+
 write.csv(bio.cor.info, "correlation_info_inspection2.csv")
 ```
 
 
 ```{r}
+bio.cor.Hapto.pt <- bio.cor.info %>% 
+  filter(!is.na(cluster_factor_types)) %>% 
+  ggplot(aes(x = cluster_factor_types, y = Haptophytes, fill = cluster_factor_types))+
+  geom_boxplot()+
+  ggtitle("Bio Correlation Coefficients \nBy Cluster")
+
+bio.cor.Hapto.pt
+
+bio.cor.DDA.pt <- bio.cor.info %>% 
+  filter(!is.na(cluster_factor_types)) %>% 
+  ggplot(aes(x = cluster_factor_types, y = Diatom_Dominated_Aggregates, fill = cluster_factor_types))+
+  geom_boxplot()+
+  ggtitle("Bio Correlation Coefficients \nBy Cluster")
+
+bio.cor.DDA.pt
+
+bio.cor.Mzoo.pt <- bio.cor.info %>% 
+  filter(!is.na(cluster_factor_types)) %>% 
+  ggplot(aes(x = cluster_factor_types, y = Microzooplankton, fill = cluster_factor_types))+
+  geom_boxplot()+
+  ggtitle("Bio Correlation Coefficients \nBy Cluster")
+
+bio.cor.Mzoo.pt
+
+bio.cor.Dia.pt <- bio.cor.info %>% 
+  filter(!is.na(cluster_factor_types)) %>% 
+  ggplot(aes(x = cluster_factor_types, y = Diatoms, fill = cluster_factor_types))+
+  geom_boxplot()+
+  ggtitle("Bio Correlation Coefficients \nBy Cluster")
+
+bio.cor.Dia.pt
+
+bio.cor.MixedAg.pt <- bio.cor.info %>% 
+  filter(!is.na(cluster_factor_types)) %>% 
+  ggplot(aes(x = cluster_factor_types, y = Mixed_Aggregates, fill = cluster_factor_types))+
+  geom_boxplot()+
+  ggtitle("Bio Correlation Coefficients \nBy Cluster")
+
+bio.cor.MixedAg.pt
+
+bio.cor.Dino.pt <- bio.cor.info %>% 
+  filter(!is.na(cluster_factor_types)) %>% 
+  ggplot(aes(x = cluster_factor_types, y = Dinoflagellates, fill = cluster_factor_types))+
+  geom_boxplot()+
+  ggtitle("Bio Correlation Coefficients \nBy Cluster")
+
+bio.cor.Dino.pt
+
+
+```
+
+
+```{r}
+bio.data.pts <- bio_spec %>% 
+  dplyr::select(r_date) %>% 
+  mutate(bio.dat.inc = TRUE)
+
 Hphyte.comp.pos <- bio.cor.info %>% 
-  filter(quant_pct > .005) %>% 
-  filter(Haptophytes > .7) %>% 
+  filter(quant_pct > .003) %>% 
+  filter(Haptophytes > .6) %>% 
   mutate(keep = 1) 
 
 Hphyte.comp.neg <- bio.cor.info %>% 
@@ -1611,14 +1691,24 @@ tt <- M_t_analyte_withIS.q.0 %>%
   left_join(Hphyte.comp.pos) %>% 
   filter(keep == 1) 
 
-M_t_analyte_withIS.q.0 %>% 
+Hapto.pos.plot <- M_t_analyte_withIS.q.0 %>% 
+  left_join(bio.data.pts) %>% 
+  filter(bio.dat.inc == TRUE) %>% 
   left_join(Hphyte.comp.pos) %>% 
   filter(keep == 1) %>% 
-  ggplot(aes(x = r_date, y = amt_ng_ptnorm))+
-  geom_line()+
-  geom_line(data = bio_spec, aes(x = r_date, y = Haptophytes/1000))
+  dplyr::select(r_date, Compound.Name, amt_ng_ptnorm, Haptophytes) %>% 
+  mutate(Compound.Name = as.factor(Compound.Name))
+
+
+Hapto.pos.plot %>%  
+  ggplot()+
+  geom_line(aes(x = r_date, y = amt_ng_ptnorm, color = Compound.Name))+
+  geom_line(data = bio_spec, aes(x = r_date, y = Haptophytes/1000))+
+  ggtitle("Haptophytes")
 
 Hapto.neg.plot <- M_t_analyte_withIS.q.0 %>% 
+  left_join(bio.data.pts) %>% 
+  filter(bio.dat.inc == TRUE) %>% 
   left_join(Hphyte.comp.neg) %>% 
   filter(keep == 1) %>% 
   dplyr::select(r_date, Compound.Name, amt_ng_ptnorm, Haptophytes) %>% 
@@ -1627,7 +1717,8 @@ Hapto.neg.plot <- M_t_analyte_withIS.q.0 %>%
 Hapto.neg.plot %>%  
   ggplot()+
   geom_line(aes(x = r_date, y = amt_ng_ptnorm, color = Compound.Name))+
-  geom_line(data = bio_spec, aes(x = r_date, y = Haptophytes/10000))
+  geom_line(data = bio_spec, aes(x = r_date, y = Haptophytes/10000))+
+  ggtitle("Haptophytes")
 
 
 table(Hapto.neg.plot$Compound.Name)
@@ -1638,15 +1729,18 @@ DDA.comp.neg <- bio.cor.info %>%
   mutate(keep = 1) 
 
 DDA.neg.plot <- M_t_analyte_withIS.q.0 %>% 
+  left_join(bio.data.pts) %>% 
+  filter(bio.dat.inc == TRUE) %>% 
   left_join(DDA.comp.neg) %>% 
   filter(keep == 1) %>% 
-  dplyr::select(r_date, Compound.Name, amt_ng_ptnorm, Haptophytes) %>% 
+  dplyr::select(r_date, Compound.Name, amt_ng_ptnorm, Diatom_Dominated_Aggregates) %>% 
   mutate(Compound.Name = as.factor(Compound.Name))
 
 DDA.neg.plot %>%  
   ggplot()+
   geom_line(aes(x = r_date, y = amt_ng_ptnorm, color = Compound.Name))+
-  geom_line(data = bio_spec, aes(x = r_date, y = Diatom_Dominated_Aggregates/100000))
+  geom_line(data = bio_spec, aes(x = r_date, y = Diatom_Dominated_Aggregates/100000))+
+  ggtitle("DDA")
 
 DDA.comp.pos <- bio.cor.info %>% 
   filter(quant_pct > .003) %>% 
@@ -1654,15 +1748,18 @@ DDA.comp.pos <- bio.cor.info %>%
   mutate(keep = 1) 
 
 DDA.pos.plot <- M_t_analyte_withIS.q.0 %>% 
+  left_join(bio.data.pts) %>% 
+  filter(bio.dat.inc == TRUE) %>% 
   left_join(DDA.comp.pos) %>% 
   filter(keep == 1) %>% 
-  dplyr::select(r_date, Compound.Name, amt_ng_ptnorm, Haptophytes) %>% 
+  dplyr::select(r_date, Compound.Name, amt_ng_ptnorm, Diatom_Dominated_Aggregates) %>% 
   mutate(Compound.Name = as.factor(Compound.Name))
 
 DDA.pos.plot %>%  
   ggplot()+
   geom_line(aes(x = r_date, y = amt_ng_ptnorm, color = Compound.Name))+
-  geom_line(data = bio_spec, aes(x = r_date, y = Diatom_Dominated_Aggregates/500000))
+  geom_line(data = bio_spec, aes(x = r_date, y = Diatom_Dominated_Aggregates/500000))+
+  ggtitle("DDA")
 
 ######
 
@@ -1672,6 +1769,8 @@ Mzoo.comp.pos <- bio.cor.info %>%
   mutate(keep = 1) 
 
 Mzoo.pos.plot <- M_t_analyte_withIS.q.0 %>% 
+  left_join(bio.data.pts) %>% 
+  filter(bio.dat.inc == TRUE) %>% 
   left_join(Mzoo.comp.pos) %>% 
   filter(keep == 1) %>% 
   dplyr::select(r_date, Compound.Name, amt_ng_ptnorm, Haptophytes) %>% 
@@ -1680,7 +1779,8 @@ Mzoo.pos.plot <- M_t_analyte_withIS.q.0 %>%
 Mzoo.pos.plot %>%  
   ggplot()+
   geom_line(aes(x = r_date, y = amt_ng_ptnorm, color = Compound.Name))+
-  geom_line(data = bio_spec, aes(x = r_date, y = Microzooplankton/500))
+  geom_line(data = bio_spec, aes(x = r_date, y = Microzooplankton/1000))+
+  ggtitle("Microzooplankton")
 
 Mzoo.comp.neg <- bio.cor.info %>% 
   filter(quant_pct > .001) %>% 
@@ -1688,6 +1788,8 @@ Mzoo.comp.neg <- bio.cor.info %>%
   mutate(keep = 1) 
 
 Mzoo.neg.plot <- M_t_analyte_withIS.q.0 %>% 
+  left_join(bio.data.pts) %>% 
+  filter(bio.dat.inc == TRUE) %>% 
   left_join(Mzoo.comp.neg) %>% 
   filter(keep == 1) %>% 
   dplyr::select(r_date, Compound.Name, amt_ng_ptnorm, Haptophytes) %>% 
@@ -1696,7 +1798,48 @@ Mzoo.neg.plot <- M_t_analyte_withIS.q.0 %>%
 Mzoo.neg.plot %>%  
   ggplot()+
   geom_line(aes(x = r_date, y = amt_ng_ptnorm, color = Compound.Name))+
-  geom_line(data = bio_spec, aes(x = r_date, y = Microzooplankton/80000))
+  geom_line(data = bio_spec, aes(x = r_date, y = Microzooplankton/80000))+
+  ggtitle("Microzooplankton")
+
+###
+
+Dia.comp.pos <- bio.cor.info %>% 
+  filter(quant_pct > .0005) %>% 
+  filter(Diatoms > .6) %>% 
+  mutate(keep = 1) 
+
+Dia.pos.plot <- M_t_analyte_withIS.q.0 %>% 
+  left_join(bio.data.pts) %>% 
+  filter(bio.dat.inc == TRUE) %>% 
+  left_join(Dia.comp.pos) %>% 
+  filter(keep == 1) %>% 
+  dplyr::select(r_date, Compound.Name, amt_ng_ptnorm, Diatoms) %>% 
+  mutate(Compound.Name = as.factor(Compound.Name))
+
+Dia.pos.plot %>%  
+  ggplot()+
+  geom_line(aes(x = r_date, y = amt_ng_ptnorm, color = Compound.Name))+
+  geom_line(data = bio_spec, aes(x = r_date, y = Diatoms/500000))+
+  ggtitle("Diatoms")
+
+Dia.comp.neg <- bio.cor.info %>% 
+  filter(quant_pct > .001) %>% 
+  filter(Diatoms < -.6) %>% 
+  mutate(keep = 1) 
+
+Dia.neg.plot <- M_t_analyte_withIS.q.0 %>% 
+  left_join(bio.data.pts) %>% 
+  filter(bio.dat.inc == TRUE) %>% 
+  left_join(Dia.comp.neg) %>% 
+  filter(keep == 1) %>% 
+  dplyr::select(r_date, Compound.Name, amt_ng_ptnorm, Diatoms) %>% 
+  mutate(Compound.Name = as.factor(Compound.Name))
+
+Dia.neg.plot %>%  
+  ggplot()+
+  geom_line(aes(x = r_date, y = amt_ng_ptnorm, color = Compound.Name))+
+  geom_line(data = bio_spec, aes(x = r_date, y = Diatoms/200000))+
+  ggtitle("Diatoms")
 
 
 ```
@@ -1922,12 +2065,13 @@ c8 <- cluster_assignments %>%
   left_join(SeaScape_normalized_cumsum.q)
 
 call <- cluster_assignments %>% 
+  left_join(h.clust.factors) %>% 
   left_join(Analyte_positions) %>%
   left_join(compiled_comp_info) %>% 
   left_join(SeaScape_normalized_cumsum.q)
 
 call %>% 
-  ggplot(aes(x = LRI.I, y = RI2, color = as.factor(cluster_assigned)))+
+  ggplot(aes(x = LRI.I, y = RI2, color = as.factor(cluster_factor_types)))+
   geom_point()
 
 c1_bio1 %>% 
