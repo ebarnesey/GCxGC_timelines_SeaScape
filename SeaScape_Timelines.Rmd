@@ -984,6 +984,8 @@ quant_sum_sample %>%
 
 summary(quant_sum_sample$frac_fb_rem)
 
+sd(quant_sum_sample$frac_fb_rem)
+
 ```
 
 
@@ -1334,7 +1336,9 @@ cluster_all %>%
 
 ```{r}
 # h.clust.factors.z <- data.frame(cluster = c(1,2,3,4,6,5,7,8,9), cluster_factors = c("Factor A", "Factor B", "Factor C", "Factor D", "Factor F", "Factor E", "Factor G", "Factor H", "Factor I"), cluster_factor_types = c("Biogenic1", "Anthro1", "Mixed4", "Mixed2", "Mixed1", "Anthro2", "Mixed3", "Mixed5", "R-Btz"))
-h.clust.factors.z <- read_csv("Read_Files/Cluster_labels.csv")
+library(forcats)
+h.clust.factors.z <- read_csv("Read_Files/Cluster_labels.csv") %>% 
+  mutate(cluster_factor_types.f = fct_reorder(cluster_factor_types, order))
 
 cluster_all %>% 
   left_join(h.clust.factors.z) %>% 
@@ -1425,7 +1429,9 @@ n = 8
 #cols = gg_color_hue(n)
 
 #cols = c("#CC6677", "#661100", "#882255",  "#44AA99", "#117733",  "#88CCEE","#332288","#6699CC")
-cols = c("#CC6677", "#661100", "#CC0099",  "#44AA99", "#117733",  "#9966FF","#6600CC","#9933CC")
+cols = c("#CC6677", "#661100", "#CC3333",  "#669900", "#336600",  "#9966FF","#660066","#9933CC")
+
+cols2 = c("#CC6677", "#661100", "#CC3333",  "#9966FF","#660066","#9933CC", "#669900", "#336600")
          
           
 
@@ -1493,7 +1499,7 @@ pan2<- ggplot()+
     name = "Mean Cluster Abundance\n(Z-Scored)",
     
     # Add a second axis and specify its features
-    sec.axis = sec_axis( trans=~.*4, name="Normalized Bioindicator \nConcentration")
+    sec.axis = sec_axis( trans=~.*.25, name="Normalized Bioindicator \nConcentration (in Water)")
   ) +
   xlab("")+
   #guides(fill=guide_legend(nrow=2,byrow=TRUE))+
@@ -1548,7 +1554,7 @@ pmix2<- ggplot()+
     name = "Mean Cluster Abundance\n(Z-Scored)",
     
     # Add a second axis and specify its features
-    sec.axis = sec_axis( trans=~.*4, name="Normalized Bioindicator \nConcentration")
+    sec.axis = sec_axis( trans=~.*.25, name="Normalized Bioindicator \nConcentration (in Water)")
   ) +
   xlab("")+
   #guides(fill=guide_legend(nrow=2,byrow=TRUE))+
@@ -1604,7 +1610,7 @@ pbio2<- ggplot()+
     name = "Mean Cluster Abundance\n(Z-Scored)",
     
     # Add a second axis and specify its features
-    sec.axis = sec_axis( trans=~.*4, name="Normalized Bioindicator \nConcentration")
+    sec.axis = sec_axis( trans=~.*.25, name="Normalized Bioindicator \nConcentration (in Water)")
   ) +
   xlab("")+
   #guides(fill=guide_legend(nrow=2,byrow=TRUE))+
@@ -1718,7 +1724,6 @@ write.csv(bio.cor.info, "correlation_info_inspection3.csv")
 
 
 ```{r}
-
 bio.cor.HB.pt <- bio.cor.info %>% 
   filter(!is.na(cluster_factor_types)) %>% 
   ggplot(aes(x = cluster_factor_types, y = HB_cells_L, fill = cluster_factor_types))+
@@ -1814,14 +1819,101 @@ bio.cor.info.sum <- bio.cor.info %>%
   filter(!is.na(cluster_factor_types))
 
 bio.cor.info.sum %>% 
-  ggplot(aes(y = bio_spec, x = cluster_factor_types, fill = avg_r))+
-  geom_tile()+
+  ggplot(aes(y = bio_spec, x = cluster_factor_types, fill = avg_r, 
+             color = as.factor(cluster_factor_types), width = .8, height = .8))+
+  geom_tile(size = 1.5)+
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
    midpoint = 0, limit = c(-1,1), space = "Lab", 
    name="Pearson\nCorrelation") +
+  scale_color_manual(values = cols[1:8])+
   theme_bw()+
    theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-    size = 12, hjust = 1))
+    size = 12, hjust = 1))+
+  guides(color = FALSE)
+```
+
+
+```{r}
+bio.spec.names <- read_csv("Read_Files/bioindicator_levels.csv") %>% 
+  mutate(bio_spec.f = fct_reorder(bio_spec, levels)) %>% 
+  mutate(bio_spec_names.f = fct_reorder(bio_spec_names, levels)) %>% 
+  arrange(desc(levels))
+
+
+#my.labels <- bio.spec.names$bio_spec_names
+my.labels <- c("Viruses","Heterotrophic\nBacteria",  
+               "Microzooplankton", "Diatom\nDominated\nAggregates", "Diatoms")
+my.labels2 <- c("Diatoms","Diatom\nDominated\nAggregates", 
+                "Microzooplankton", "Heterotrophic\nBacteria", "Viruses")
+
+cor.plot.biospec <- bio.cor.info.sum %>% 
+  left_join(h.clust.factors.z) %>% 
+  left_join(bio.spec.names)
+
+bio.cor.info.sum %>% 
+  left_join(h.clust.factors.z) %>% 
+  left_join(bio.spec.names) %>% 
+  filter(!is.na(levels)) %>% 
+   # filter(bio_spec == "Virus_L"| bio_spec == "Microzooplankton"| bio_spec == "HB_cells_L"| 
+   #        bio_spec == "Diatoms"| bio_spec == "Diatom_Dominated_Aggregates") %>% 
+   ggplot(aes(y = bio_spec_names.f, x = cluster_factor_types.f, fill = avg_r))+
+  geom_tile(size = 1.5)+
+  scale_fill_gradient2(low = "darkblue", high = "darkgoldenrod2", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Average\nPearson\nCorrelation") +
+  scale_color_manual(values = cols[1:8])+
+  scale_y_discrete(labels= my.labels)+
+  theme_bw()+
+   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1))+
+  guides(color = FALSE)
+
+a <- cols2
+
+bio.c.plot <- bio.cor.info.sum %>% 
+  left_join(h.clust.factors.z) %>% 
+  left_join(bio.spec.names) %>% 
+  filter(!is.na(levels)) %>% 
+   # filter(bio_spec == "Virus_L"| bio_spec == "Microzooplankton"| bio_spec == "HB_cells_L"| 
+   #        bio_spec == "Diatoms"| bio_spec == "Diatom_Dominated_Aggregates") %>% 
+   ggplot(aes(y = bio_spec_names.f, x = cluster_factor_types.f, fill = avg_r))+
+  geom_tile(size = 1.5)+
+  scale_fill_gradient2(low = "royalblue4", high = "darkgoldenrod2", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Average\nPearson\nCorrelation") +
+  scale_color_manual(values = cols[1:8])+
+  scale_y_discrete(labels= my.labels2)+
+  ylab("")+
+  xlab("")+
+  theme_bw(base_size = 12)+
+   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1, color = a))+
+  guides(color = FALSE)
+
+bio.c.plot
+
+png("bio_cor_plot.png", width=5.5, height=3.8,
+    units="in", res=600, pointsize=12)
+bio.c.plot
+dev.off()
+
+bio.cor.info.sum %>% 
+  left_join(h.clust.factors.z) %>% 
+  left_join(bio.spec.names) %>% 
+  filter(!is.na(levels)) %>% 
+   # filter(bio_spec == "Virus_L"| bio_spec == "Microzooplankton"| bio_spec == "HB_cells_L"| 
+   #        bio_spec == "Diatoms"| bio_spec == "Diatom_Dominated_Aggregates") %>% 
+   ggplot(aes(y = bio_spec_names.f, x = cluster_factor_types.f, fill = avg_r))+
+  geom_tile(size = 1.5)+
+  scale_fill_gradient2(low = "darkslategrey", high = "darkgoldenrod2", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Average\nPearson\nCorrelation") +
+  scale_color_manual(values = cols[1:8])+
+  #scale_y_discrete(labels= my.labels2)+
+  theme_bw()+
+   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1))+
+  guides(color = FALSE)
 
 
 
@@ -2003,7 +2095,11 @@ Dia.neg.plot %>%
 Now looking at knowledge of the different clusters
 
 ```{r}
+identifications_confirmed <- read_csv("Read_Files/Confirmed_Identifications.csv")
+
 knowledge_clusters <- cluster_assignments %>% 
+  left_join(identifications_confirmed) %>% 
+  mutate(ID_c = !Model_Properties) %>% 
   left_join(h.clust.factors) %>% 
   left_join(compiled_comp_info) %>% 
   left_join(SeaScape_normalized_cumsum.q) %>% 
@@ -2016,6 +2112,28 @@ knowledge_clusters %>%
 knowledge_clusters %>% 
   ggplot(aes(x = cluster_factor_types, y = tic, fill = Identifiable))+
   geom_col()
+
+knowledge_clusters %>% 
+  ggplot(aes(x = cluster_factor_types, y = quant_pct, fill = ID_c))+
+  geom_col()
+
+knowledge_clusters %>% 
+  filter(!is.na(cluster_group)) %>% 
+  ggplot(aes(x = cluster_group, y = quant_pct, fill = ID_c))+
+  geom_col()+
+  ylab("Cumulative Organic Mass")+
+  xlab("")+
+  scale_fill_manual(name = "Identifiable by\nDatabase Match", values = c("grey33", "grey60"))+
+  theme_bw(base_size = 14)
+
+knowledge_clusters %>% 
+  filter(!is.na(cluster_group)) %>% 
+  ggplot(aes(x = cluster_group, y = quant_pct, fill = ID_c))+
+  geom_col(position = "fill")+
+  ylab("Fraction Cluster Category Mass")+
+  xlab("")+
+  scale_fill_manual(name = "Identifiable by\nDatabase Match", values = c("grey33", "grey60"))+
+  theme_bw(base_size = 14)
 
 ```
 
@@ -2064,6 +2182,20 @@ carbon_pool <- M_t_analyte_withIS.hclust %>%
   
 
 carbon_pool
+
+carbon_pool2 <- M_t_analyte_withIS.hclust %>% 
+  ggplot(aes(x = r_date, y = amt_ng_ptnorm, fill = cluster_factor_types.f)) +
+  geom_col(position = "fill")+
+  theme_bw()+
+  xlab("")+
+  ylab("Mass Fraction")+
+  ggtitle("Submicron Sea Spray Aerosol \n Carbon Pool Dynamics")+
+  scale_fill_manual(values = cols2[1:8])+
+  theme(plot.title = element_text(size = 18, hjust = .5), legend.text = element_text(size = 14), legend.title=element_text(size=14), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title.y = element_text(size = 16))+
+  scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))
+  
+
+carbon_pool2
 
 png("carbon_pool.png", width=8, height=5,
     units="in", res=600, pointsize=12)
