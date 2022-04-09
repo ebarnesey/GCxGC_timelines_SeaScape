@@ -39,9 +39,22 @@ library(lattice)
 library(survival)
 library(Hmisc)
 library(lubridate)
+library(CHNOSZ)
+library(data.table)
 #install.packages("installr")
 #library(installr)
 ```
+
+Creating useful custom functions
+```{r}
+left_join0<- function(x, y, fill = 0){
+  z <- left_join(x, y)
+  tmp <- setdiff(names(z), names(x))
+  z <- replace_na(z, setNames(as.list(rep(fill, length(tmp))), tmp))
+  z
+}
+```
+
 ## Importing and Tidying GC Image Data
 Background: GC image pre-processing
 - All images must be RI configured and searched against 1) a custom library of internal standard compounds 2) a custom library of field blank compounds 3) one or more custom libraries of template compounds to be traced over campaign.  Libraries need not be compiled into one and can remain separated by source file. 
@@ -926,10 +939,65 @@ tot_org_o <- read_csv("Read_Files/Davis_Total_org.csv") %>%
 QF_s <- QF_o %>% 
   dplyr::select(Compound.Name, Quant_Factor_final)
 
-# note just picking 1.4 as the organic mass to organic carbon ratio, check with Allen
-OM_OC <- 1.4
 
+# now deterimining the appropriate OM:OC ratio from the average of the identifiable
+# constituents in ES
+ES_known_form_o <- read_csv("Read_Files/Known_Compound_Formulae.csv")
+
+ES_known_form <- ES_known_form_o %>% 
+  dplyr::rename(ChemFormula = Formula_Underivitized_forMod) %>% 
+  dplyr::mutate(Cnum = 0) %>% 
+  dplyr::mutate(Hnum = 0) %>% 
+  dplyr::mutate(Onum = 0) %>% 
+  dplyr::mutate(Nnum = 0) %>% 
+  dplyr::mutate(Snum = 0)
+
+Element <- c("C", "H", "O", "N", "S")
+d.e <- data.frame(Element = Element)
+
+
+for(i in 1:nrow(ES_known_form)){
+  
+  #i = 10
+  form.t <- ES_known_form$ChemFormula[i]
+  
+  form.t1 <- data.frame(makeup(form.t))
+  setDT(form.t1, keep.rownames = TRUE)[]
+  names(form.t1)<- c("Element", "num")
+  
+  form.t2 <- d.e %>% 
+    left_join0(form.t1)
+    
+  form.t3 <- data.frame(form.t2[,-1])
+  rownames(form.t3) <- form.t2[,1]
+  
+  form.t4 <- data.frame(t(form.t3))
+  names(form.t4) <-c("C", "H", "O", "N", "S")
+  
+  ES_known_form$Cnum[i]= form.t4$C[1]
+  ES_known_form$Hnum[i]= form.t4$H[1]
+  ES_known_form$Onum[i]= form.t4$O[1]
+  ES_known_form$Nnum[i]= form.t4$N[1]
+  ES_known_form$Snum[i]= form.t4$S[1]
+}
+
+ES_known_form.m <- ES_known_form %>% 
+  dplyr::mutate(C_mass = 12*Cnum) %>% 
+  dplyr::mutate(tot_mass = (12*Cnum)+(16*Onum)+(Hnum)+(14*Nnum)+(32*Snum)) %>% 
+  dplyr::mutate(OM_OC = tot_mass/C_mass) %>% 
+  filter(Cnum > 0) 
+summary(ES_known_form.m$OM_OC)
+
+
+# note just picking 1.4 as the organic mass to organic carbon ratio, check with Allen
+OM_OC <- 1.3
+```
+
+plotting indicators
+
+```{r}
 # note that the siloxane peaks (defined as matched with a siloxane MF > 740) are being removed, because they likely were not quantified accurately
+# also removing phosphate
 M_t_analyte_withIS.q <- M_t_analyte_withIS %>% 
   filter(Compound.Name != "20200803_1535_blob_3_fb") %>% 
   filter(Compound.Name != "20200803_1535_blob_19_") %>% 
@@ -939,6 +1007,7 @@ M_t_analyte_withIS.q <- M_t_analyte_withIS %>%
   filter(Compound.Name != "20200803_1535_blob_453_") %>% 
   filter(Compound.Name != "20200803_1535_blob_458_") %>% 
   filter(Compound.Name != "20200803_1535_blob_492_") %>%
+  filter(Compound.Name != "20200803_0949_blob_1249_") %>%
   left_join(QF_s) %>% 
   dplyr::mutate(amt_ng = vol_is_normnorm * Quant_Factor_final) %>% 
   dplyr::mutate(amt_ng_per_cm3 = amt_ng/(.41*Filter_punches)) %>% 
@@ -985,6 +1054,38 @@ quant_sum_sample %>%
 summary(quant_sum_sample$frac_fb_rem)
 
 sd(quant_sum_sample$frac_fb_rem)
+
+
+crocker_comp <- read_csv("Read_Files/Organic_Mass_Comparison.csv") %>% 
+  mutate(r_date = mdy_hm(Date))
+
+carbon_comp <- crocker_comp %>% 
+  ggplot(aes(x = r_date, y = ugC_per_m3_air, color = "GCxGC Analysis\nFilters", 
+             shape = "GCxGC Analysis\nFilters"))+
+  geom_point(size = 2)+
+  geom_point(aes(x = r_date, y = Crocker_ugCperm3, color = "Carbon Isotope\nAnalysis Filters",
+                 shape = "Carbon Isotope\nAnalysis Filters"),
+             size = 2)+
+  scale_shape_manual(name= "OC Quantification\nMethod", labels = c("Carbon Isotope\nAnalysis Filters", "GCxGC Analysis\nFilters"), values = c(17, 19))+
+  scale_color_manual(name= "OC Quantification\nMethod", labels = c("Carbon Isotope\nAnalysis Filters", "GCxGC Analysis\nFilters"), values = c("grey20", "orange2"))+
+  ylim(0, 1.2)+
+  ylab("SSA Organic Carbon\n(ugC/m3)")+
+  xlab("")+
+  theme_bw(base_size = 14)
+
+
+carbon_comp
+
+png("carbon_comp_crocker.png", width=6.5, height=4,
+    units="in", res=600, pointsize=12)
+carbon_comp
+dev.off()
+
+crocker_comp %>% 
+  ggplot()+
+  geom_boxplot(aes(x = "GCxGC Analysis\nFilters", y = ugC_per_m3_air))+
+  geom_boxplot(aes(x = "Carbon Isotope\nAnalysis Filters", y = Crocker_ugCperm3))
+  
 
 ```
 
@@ -1402,6 +1503,13 @@ cluster_corr_infor <- cluster_corr_hclust %>%
 cluster_assignments <- read_csv("Read_Files/Cluster_Assignments_Manual_Check_SeaScape_2.csv") %>% 
   dplyr::select(Compound.Name, cluster_assigned)
 
+comp_info_cluster_quant <- compiled_comp_info %>% 
+  left_join(cluster_assignments) %>% 
+  left_join(SeaScape_normalized_cumsum.q) %>% 
+  left_join(h.clust.factors)
+
+write.csv(comp_info_cluster_quant, "Write_Files/Compiled_Compound_Info_clusters_quant.csv")
+
 ```
 
 ```{r}
@@ -1476,7 +1584,7 @@ pan<- ggplot()+
 
 pan
 
-png("anthro_clusters2.png", width=8, height=5,
+png("anthro_clusters3b.png", width=8, height=5,
     units="in", res=600, pointsize=12)
 pan
 dev.off()
@@ -1531,7 +1639,7 @@ pmix<- ggplot()+
 
 pmix
 
-png("mixed_clusters.png", width=8, height=5,
+png("mixed_clusters2b.png", width=8, height=5,
     units="in", res=600, pointsize=12)
 pmix
 dev.off()
@@ -1587,7 +1695,7 @@ pbio<- ggplot()+
 pbio
 # check corr with diatom aggregates
 
-png("biogenic_clusters.png", width=8, height=5,
+png("biogenic_clusters2b.png", width=8, height=5,
     units="in", res=600, pointsize=12)
 pbio
 dev.off()
@@ -1648,13 +1756,109 @@ chlaplot <- chla_hb %>%
   scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))+
   xlab("")
 
-png("Chlorophyll_hb.png", width=8, height=5,
+png("Chlorophyll_hb3b.png", width=8, height=5,
     units="in", res=600, pointsize=12)
 chlaplot
 dev.off()
 
 
 ```
+
+Setting up panels for final aesthetic choices
+
+```{r}
+date.s <- chla_hb$r_date[2]
+date.e <- chla_hb$r_date[17]
+
+pan.f<- ggplot()+
+  #geom_col(data = bio_markers, aes(x = r_date, y = biomarker_mag, fill = Event_label), width = 20000)+
+  geom_line(data = hclust_anthro, aes(x = r_date, y = cluster_vol.z, color = cluster_factor_types), size = 1.2)+
+  theme_bw()+
+  ylab("Mean Cluster\nAbundance (Z-Scored)")+
+  ggtitle("Aerosol Organics:\nAnthropogenic Influence Clusters")+
+  theme(plot.title = element_text(size = 18, hjust = 0.5, vjust = -2),legend.text = element_text(size = 16), legend.title = element_blank(), axis.text.x = element_blank(), axis.text.y = element_text(size = 18), axis.title.y = element_text(size = 18), 
+        legend.position = c(.8, .8), panel.border = element_blank(), axis.line = element_line(colour = "black"))+
+  #ylim(minh, maxh)+
+  scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))+
+  xlab("")+
+  #guides(fill=guide_legend(nrow=2,byrow=TRUE))+
+  scale_color_manual(values = cols[1:3])+
+  scale_fill_manual(values = c("darkgreen", "blue4"), labels = c( "Peak Chlorophyll", "Peak Bacteria"))+
+  ylim(-2, 4)+
+  guides(fill = guide_legend(order = 1),color = guide_legend(order = 2))
+
+pan.f
+
+pbio.f<- ggplot()+
+  
+  #geom_col(data = bio_markers, aes(x = r_date, y = biomarker_mag, fill = Event_label), width = 20000)+
+  geom_line(data = hclust_bio, aes(x = r_date, y = cluster_vol.z, color = cluster_factor_types), size = 1.2)+
+  theme_bw()+
+  ylab("Mean Cluster\nAbundance (Z-Scored)")+
+  ggtitle("Aerosol Organics:\nBiogenic Influence Clusters")+
+  theme(plot.title = element_text(size = 18, hjust = 0.5, vjust = -2),legend.text = element_text(size = 16), legend.title = element_blank(), axis.text.x = element_blank(), axis.text.y = element_text(size = 18), axis.title.y = element_text(size = 18), 
+        legend.position = c(.8, .8), panel.border = element_blank(), axis.line = element_line(colour = "black"))+
+  #ylim(minh, maxh)+
+  scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))+
+  xlab("")+
+  ylim(-2, 4)+
+  #guides(fill=guide_legend(nrow=2,byrow=TRUE))+
+  scale_color_manual(values = cols[4:5])+
+  scale_fill_manual(values = c("darkgreen", "blue4"), labels = c("Peak Chlorophyll", "Peak Bacteria"))
+
+pbio.f
+
+pmix.f<- ggplot()+
+  #geom_col(data = bio_markers, aes(x = r_date, y = biomarker_mag, fill = Event_label), width = 20000)+
+  geom_line(data = hclust_mix, aes(x = r_date, y = cluster_vol.z, color = cluster_factor_types), size = 1.2)+
+  theme_bw()+
+  ylab("Mean Cluster\nAbundance (Z-Scored)")+
+  ggtitle("Aerosol Organics:\nMixed Influence Clusters")+
+  theme(plot.title = element_text(size = 18, hjust = 0.5, vjust = -2),legend.text = element_text(size = 16), legend.title = element_blank(), axis.text.x = element_blank(), axis.text.y = element_text(size = 18), axis.title.y = element_text(size = 18), 
+        legend.position = c(.77, .8), panel.border = element_blank(), axis.line = element_line(colour = "black"))+
+  #ylim(minh, maxh)+
+  scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))+
+  xlab("")+
+  ylim(-2, 4)+
+  #guides(fill=guide_legend(nrow=2,byrow=TRUE))+
+  scale_color_manual(values = cols[6:8])
+
+pmix.f
+
+chla_hb.l <- chla_hb %>% 
+  dplyr::select(r_date, chla_norm, hb_norm) %>% 
+  gather(key = "bio_cat", value = "normalized_conc", -r_date)
+
+chla_hb.f <- ggplot()+
+  geom_line(data = chla_hb.l, aes(x = r_date, y = normalized_conc, color = bio_cat), size = 1.2)+
+  theme_bw()+
+  ylab("Normalized \nConcentration (in Water)")+
+  ggtitle("Biological Activity Indicators")+
+  theme(plot.title = element_text(size = 18, hjust = 0.5),legend.text = element_text(size = 16), legend.title = element_blank(), axis.text.y = element_text(size = 18), axis.text.x = element_text(size = 18), axis.title.y = element_text(size = 18), 
+        legend.position = c(.2, .8), panel.border = element_blank(), axis.line = element_line(colour = "black"))+
+  # theme(plot.title = element_text(size = 18, hjust = 0.5), legend.text = element_text(size = 16), legend.title = element_blank(), axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 18), axis.title.y = element_text(size = 18), legend.position = c(.2, .8))+
+  #ylim(minh, maxh)+
+  scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))+
+  xlab("")+
+  ylim(0, 1)+
+  #guides(fill=guide_legend(nrow=2,byrow=TRUE))+
+  scale_color_manual(values = c("green4", "blue4"), labels = c("Chlorophyll-a", "\nHeterotrophic\nBacteria"))
+
+chla_hb.f 
+
+library(ggpubr)
+bioi <- ggarrange(pan.f, pbio.f, pmix.f, chla_hb.f, heights = c(3, 3, 3, 3.2), 
+          labels = c("A", "B", "C", "D"),
+          ncol = 1, nrow = 4, align = "v")
+
+bioi
+
+png("bioind10.png", width=6, height=14,
+    units="in", res=600, pointsize=12)
+bioi
+dev.off()
+```
+
 Now comparing speciated biology time series to the cluster time series
 
 ```{r}
@@ -1662,6 +1866,7 @@ bio_spec <- read_csv("Read_Files/Speciated_Biology_Time_Series_scaled.csv") %>%
   mutate(r_date =    mdy_hm(SS_startdate))
 
 bs.p <- bio_spec %>% 
+  filter(!is.na(Diatoms)) %>% 
   ggplot()+
   geom_line(aes(x = r_date, y= Mixed_Aggregates, color = "Mixed_Aggregates"))+
   geom_line(aes(x = r_date, y= Diatom_Dominated_Aggregates, color = "Diatom_Dom_Aggregates"))+
@@ -1706,12 +1911,12 @@ bio_corr <-M_t_analyte_withIS.q.0 %>%
 
 bio.cor <- cor(bio_corr, use = "pairwise.complete.obs") 
 
-write.csv(bio.cor, "correlation_inspection2.csv")
+write.csv(bio.cor, "correlation_inspection4.csv")
 
 h.clust.factors <- h.clust.factors.z %>% 
   dplyr::rename(cluster_assigned = cluster)
 
-bio.cor.info <- read_csv("correlation_inspection_ed3_hbvirus.csv")%>% 
+bio.cor.info <- read_csv("correlation_inspection_ed4_virus_hb_chla.csv")%>% 
   left_join(cluster_assignments) %>% 
   left_join(h.clust.factors) %>% 
   left_join(SeaScape_normalized_cumsum.q) %>% 
@@ -1719,7 +1924,7 @@ bio.cor.info <- read_csv("correlation_inspection_ed3_hbvirus.csv")%>%
 
 table(bio.cor.info$cluster_factor_types)
 
-write.csv(bio.cor.info, "correlation_info_inspection3.csv")
+write.csv(bio.cor.info, "correlation_info_inspection4.csv")
 ```
 
 
@@ -1814,8 +2019,9 @@ bio.cor.info.sum <- bio.cor.info %>%
             Diatoms = mean(Diatoms, na.rm = TRUE),
             Haptophytes = mean(Haptophytes, na.rm = TRUE),
             HB_cells_L = mean(HB_cells_L, na.rm = TRUE),
-            Virus_L = mean(Virus_L, na.rm = TRUE)) %>% 
-  gather("bio_spec", "avg_r", 2:9) %>% 
+            Virus_L = mean(Virus_L, na.rm = TRUE),
+            Chla = mean(Chlor_a, na.rm = TRUE)) %>% 
+  gather("bio_spec", "avg_r", 2:10) %>% 
   filter(!is.na(cluster_factor_types))
 
 bio.cor.info.sum %>% 
@@ -1842,8 +2048,9 @@ bio.spec.names <- read_csv("Read_Files/bioindicator_levels.csv") %>%
 
 #my.labels <- bio.spec.names$bio_spec_names
 my.labels <- c("Viruses","Heterotrophic\nBacteria",  
-               "Microzooplankton", "Diatom\nDominated\nAggregates", "Diatoms")
-my.labels2 <- c("Diatoms","Diatom\nDominated\nAggregates", 
+               "Microzooplankton", "Diatom\nDominated\nAggregates", "Diatoms",
+               "Chlorophyll-a")
+my.labels2 <- c("Chlorophyll-a", "Diatoms","Diatom\nDominated\nAggregates", 
                 "Microzooplankton", "Heterotrophic\nBacteria", "Viruses")
 
 cor.plot.biospec <- bio.cor.info.sum %>% 
@@ -1892,7 +2099,7 @@ bio.c.plot <- bio.cor.info.sum %>%
 
 bio.c.plot
 
-png("bio_cor_plot.png", width=5.5, height=3.8,
+png("bio_cor_plot5.png", width=5.5, height=3.5,
     units="in", res=600, pointsize=12)
 bio.c.plot
 dev.off()
@@ -2126,14 +2333,25 @@ knowledge_clusters %>%
   scale_fill_manual(name = "Identifiable by\nDatabase Match", values = c("grey33", "grey60"))+
   theme_bw(base_size = 14)
 
-knowledge_clusters %>% 
+know.p.1 <- knowledge_clusters %>% 
   filter(!is.na(cluster_group)) %>% 
   ggplot(aes(x = cluster_group, y = quant_pct, fill = ID_c))+
   geom_col(position = "fill")+
-  ylab("Fraction Cluster Category Mass")+
+  ylab("Fraction Cluster\nCategory Mass")+
   xlab("")+
-  scale_fill_manual(name = "Identifiable by\nDatabase Match", values = c("grey33", "grey60"))+
-  theme_bw(base_size = 14)
+  theme_bw(base_size = 14)+
+  #theme(axis.text.x = element_text(angle = 45))+
+   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+     size = 14, hjust = 1))+
+  scale_fill_manual(name = "Identifiable by\nDatabase Match", values = c("grey33", "grey60"))
+  
+
+know.p.1
+
+png("know.p.5.png", width=5, height=3.5,
+    units="in", res=600, pointsize=12)
+know.p.1
+dev.off()
 
 ```
 
@@ -2188,18 +2406,18 @@ carbon_pool2 <- M_t_analyte_withIS.hclust %>%
   geom_col(position = "fill")+
   theme_bw()+
   xlab("")+
-  ylab("Mass Fraction")+
+  ylab("Mass Fraction (Recovered)")+
   ggtitle("Submicron Sea Spray Aerosol \n Carbon Pool Dynamics")+
-  scale_fill_manual(values = cols2[1:8])+
+  scale_fill_manual(values = cols2[1:8], name = "")+
   theme(plot.title = element_text(size = 18, hjust = .5), legend.text = element_text(size = 14), legend.title=element_text(size=14), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title.y = element_text(size = 16))+
   scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))
   
 
 carbon_pool2
 
-png("carbon_pool.png", width=8, height=5,
+png("carbon_pool4.png", width=6, height=4.5,
     units="in", res=600, pointsize=12)
-carbon_pool
+carbon_pool2
 dev.off()
 
 carbon_pool_nodiiso <- M_t_analyte_withIS.hclust %>% 
@@ -2208,9 +2426,9 @@ carbon_pool_nodiiso <- M_t_analyte_withIS.hclust %>%
   geom_col(position = "fill")+
   theme_bw()+
   xlab("")+
-  ylab("Mass Fraction")+
+  ylab("Mass Fraction (Recovered)")+
   ggtitle("Submicron Sea Spray Aerosol \n Carbon Pool Dynamics")+
-  scale_fill_manual(values = cols[1:8])+
+  scale_fill_manual(values = cols[1:8], name = "")+
   theme(plot.title = element_text(size = 18, hjust = .5), legend.text = element_text(size = 14), legend.title=element_text(size=14), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title.y = element_text(size = 16))+
   scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))
   
