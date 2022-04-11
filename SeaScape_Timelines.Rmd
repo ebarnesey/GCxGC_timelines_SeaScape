@@ -1011,7 +1011,9 @@ M_t_analyte_withIS.q <- M_t_analyte_withIS %>%
   left_join(QF_s) %>% 
   dplyr::mutate(amt_ng = vol_is_normnorm * Quant_Factor_final) %>% 
   dplyr::mutate(amt_ng_per_cm3 = amt_ng/(.41*Filter_punches)) %>% 
-  dplyr::mutate(amt_ng_ptnorm = amt_ng/Punch_num_sample_time_norm)
+  dplyr::mutate(amt_ng_ptnorm = amt_ng/Punch_num_sample_time_norm) %>% 
+  dplyr::mutate(air_m3_per_cm2 =(1.308*Time_sampled_number*24)/9.6) %>% # see "Sample Needs Estimate CAICE for more, 1.308 is air flow in m3/hr, 9.6 is collection area in cm2 from manufacturer of filter holder
+  dplyr::mutate(amt_ng_per_m3_air = amt_ng_per_cm3/air_m3_per_cm2)
 
 #write.csv(M_t_analyte_withIS.q, "quant_inspect.csv")
 
@@ -1290,13 +1292,38 @@ plot(cluster_dtw_h[[5]], type = "sc")
 plot(cluster_dtw_h[[4]], type = "sc")
 plot(cluster_dtw_h[[3]], type = "sc")
 
+final.clust <- cluster_dtw_h[[8]]
+
+plot(final.clust, type = "sc")
 
 1
+cvi(cluster_dtw_h[[4]], type = "valid")
 cvi(cluster_dtw_h[[5]], type = "valid")
 cvi(cluster_dtw_h[[6]], type = "valid")
 cvi(cluster_dtw_h[[7]], type = "valid")
 cvi(cluster_dtw_h[[8]], type = "valid")
 cvi(cluster_dtw_h[[9]], type = "valid")
+cvi(cluster_dtw_h[[10]], type = "valid")
+
+sil.d <- c(.303, .297, .282, .275, .218, .225, .227)
+sil.i <- c(4, 5, 6, 7, 8, 9, 10)
+sil.plot <- data.frame(n_cluster = sil.i, sil = sil.d)
+
+sil.plot.p <- sil.plot %>% 
+  ggplot(aes(x = n_cluster, y = sil))+
+  geom_line()+
+  geom_point()+
+  ylim(.2, .35)+
+  xlab("Number of Clusters")+
+  ylab("Silhouette Index")+
+  theme_bw(base_size = 14)
+
+sil.plot.p
+
+png("silhouette.index.png", width=6, height=5,
+    units="in", res=600, pointsize=12)
+sil.plot.p
+dev.off()
 
 # from this appears that 8 clusters is ideal, based on maximizing Sil
 ```
@@ -1314,6 +1341,26 @@ table(clustered_data_tidy$cluster)
 clustered_data_tidy <- clustered_data_tidy %>% 
   mutate(Compound.Name = sub('.', '', Compound.Name))
 
+cluster_vis <- M_t_analyte_withIS_smoothed.zscore %>% 
+  left_join(clustered_data_tidy) %>% 
+  filter(!is.na(cluster)) %>% 
+  left_join(h.clust.factors.z) 
+
+cluster_vis.p <- cluster_vis %>% 
+  ggplot(aes(x = r_date, y = amt_ng_ptnorm_smooth.zscore, color = Compound.Name))+
+  geom_line(show.legend = FALSE)+
+  facet_wrap(~ cluster_factor_types.f)+
+  theme_bw(base_size = 12)+
+  ylab("Concentration (Z-Scored)")+
+  xlab("")
+
+cluster_vis.p
+  
+  
+png("clustervis.png", width=8, height=6,
+    units="in", res=600, pointsize=12)
+cluster_vis.p
+dev.off()
 
 ```
 
@@ -2353,6 +2400,22 @@ png("know.p.5.png", width=5, height=3.5,
 know.p.1
 dev.off()
 
+know.t <- M_t_analyte_withIS.q.0 %>% 
+  left_join(identifications_confirmed) %>% 
+  mutate(ID_c = !Model_Properties) %>% 
+  filter(!is.na(ID_c)) %>% 
+  ggplot(aes(x = r_date, y = amt_ng_ptnorm, fill = ID_c))+
+  geom_col(position = "fill")+
+  ylab("Fraction Recovered Mass")+
+  xlab("")+
+  theme_bw(base_size = 14)+
+  scale_fill_manual(name = "Identifiable by\nDatabase Match", values = c("grey33", "grey60"))
+
+png("know.t.png", width=5.5, height=3.5,
+    units="in", res=600, pointsize=12)
+know.t
+dev.off()
+
 ```
 
 
@@ -2415,6 +2478,20 @@ carbon_pool2 <- M_t_analyte_withIS.hclust %>%
 
 carbon_pool2
 
+carbon_pool3 <- M_t_analyte_withIS.hclust %>% 
+  ggplot(aes(x = r_date, y = amt_ng_per_m3_air, fill = cluster_factor_types.f)) +
+  geom_col(position = "fill")+
+  theme_bw()+
+  xlab("")+
+  ylab("Mass Fraction (Recovered)")+
+  ggtitle("Submicron Sea Spray Aerosol \n Carbon Pool Dynamics")+
+  scale_fill_manual(values = cols2[1:8], name = "")+
+  theme(plot.title = element_text(size = 18, hjust = .5), legend.text = element_text(size = 14), legend.title=element_text(size=14), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title.y = element_text(size = 16))+
+  scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))
+  
+
+carbon_pool3
+
 png("carbon_pool4.png", width=6, height=4.5,
     units="in", res=600, pointsize=12)
 carbon_pool2
@@ -2441,11 +2518,100 @@ M_t_analyte_withIS.hclust %>%
   scale_fill_manual(values = cols[1:8])+
   geom_col(position = "stack")
 
+cp.si <- M_t_analyte_withIS.hclust %>% 
+  ggplot(aes(x = r_date, y = amt_ng_per_m3_air, fill = cluster_factor_types.f)) +
+  #scale_fill_manual(values = cols[1:8], name = "")+
+  geom_col(position = "stack")+
+  theme_bw()+
+  xlab("")+
+  #ylab("Concentration (ng/m3)")+
+  ylab(bquote('Concentration '(ng/m^3)))+
+  ggtitle("Submicron Sea Spray Aerosol \n Carbon Pool Dynamics")+
+  scale_fill_manual(values = cols2[1:8], name = "")+
+  theme(plot.title = element_text(size = 18, hjust = .5), legend.text = element_text(size = 14), legend.title=element_text(size=14), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title.y = element_text(size = 16))+
+  scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))
+
+png("carbon_pool_forsi.png", width=6, height=4.5,
+    units="in", res=600, pointsize=12)
+cp.si
+dev.off()
+
 M_t_analyte_withIS.hclust %>% 
   filter(Compound.Name != "20200803_1535_blob_745_") %>% 
   ggplot(aes(x = r_date, y = amt_ng_ptnorm, fill = cluster_factor_types)) +
   geom_col(position = "stack")
 ```
+Plotting mass spectra of interesting unknown biogenic compounds
+```{r}
+unkbio_MS_o = read_csv(file = "Read_Files/Unk_bio_MS.csv")
+
+trim.leading <- function (x)  sub("^\\s+", "", x)
+
+unkbio_MS_t = unkbio_MS_o %>% 
+    dplyr::mutate(MS = strsplit(as.character(MS), ";")) %>% 
+    unnest(MS) %>% 
+    filter(MS != "") %>% 
+    dplyr::mutate(MS2 = trim.leading(MS)) 
+  
+
+
+
+unkbio_MS_3 = separate(data = unkbio_MS_t, col = MS2, into = c("mz", "intensity"), sep = " ")
+
+unkbio_MS_full = unkbio_MS_3 %>% 
+  dplyr::mutate(intensity = as.numeric(intensity)) %>% 
+  dplyr::mutate(mz = as.numeric(mz)) %>% 
+  arrange(desc(intensity)) %>% 
+  arrange(desc(Name)) %>% 
+  group_by(Name) %>%
+  dplyr::mutate(my_ranks = order(order(intensity, decreasing=TRUE))) %>% 
+  ungroup()
+
+bio_ms_1 <- unkbio_MS_full %>% 
+  filter(Name == "20200803_1535_blob_745_") 
+
+bio_ms_1.p <- bio_ms_1 %>% 
+  ggplot(aes(x = mz, y = intensity))+
+  geom_col(width = .5, fill = "black")+
+  geom_text(aes(label=ifelse(my_ranks<6,as.character(mz),'')),hjust=0,vjust=0)+
+  xlab("m/z")+
+  ylab("Intensity")+
+  theme_bw(base_size = 14)
+
+png("Biounk_1_ms.png", width=6.5, height=4,
+    units="in", res=600, pointsize=12)
+bio_ms_1.p
+dev.off()
+
+bio_ms_2 <- unkbio_MS_full %>% 
+  filter(Name == "20200803_1535_blob_21_") 
+
+library(ggrepel)
+
+bio_ms_2.p <- bio_ms_2 %>% 
+  ggplot(aes(x = mz, y = intensity))+
+  geom_col(width = .5, fill = "black")+
+  geom_text(aes(label=ifelse(my_ranks<5,as.character(mz),'')),hjust=-.2,vjust=0)+
+  #geom_label_repel(aes(label = ifelse(my_ranks<5,as.character(mz),'')), 
+   #                label.size = NA)+
+                  #box.padding   = 0.35, 
+                  #point.padding = 0.5,
+                  #segment.color = 'grey50') +
+  xlab("m/z")+
+  ylab("Intensity")+
+  theme_bw(base_size = 14)
+
+bio_ms_2.p
+
+png("Biounk_2_ms.png", width=6.5, height=4,
+    units="in", res=600, pointsize=12)
+bio_ms_2.p
+dev.off()
+
+```
+
+
+
 
 
 ```{r}
