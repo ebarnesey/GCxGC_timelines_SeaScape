@@ -1341,6 +1341,17 @@ table(clustered_data_tidy$cluster)
 clustered_data_tidy <- clustered_data_tidy %>% 
   mutate(Compound.Name = sub('.', '', Compound.Name))
 
+smoothed_zscoreparams <- M_t_analyte_withIS_smoothed %>% 
+  group_by(Compound.Name) %>% 
+  summarise(c.mean = mean(amt_ng_ptnorm_smooth), c.stdev = sd(amt_ng_ptnorm_smooth))
+
+M_t_analyte_withIS_smoothed.zscore <- M_t_analyte_withIS_smoothed %>% 
+  left_join(smoothed_zscoreparams) %>% 
+  mutate(amt_ng_ptnorm_smooth.zscore = (amt_ng_ptnorm_smooth-c.mean)/c.stdev)
+
+h.clust.factors.z <- read_csv("Read_Files/Cluster_labels.csv") %>% 
+  mutate(cluster_factor_types.f = fct_reorder(cluster_factor_types, order))
+
 cluster_vis <- M_t_analyte_withIS_smoothed.zscore %>% 
   left_join(clustered_data_tidy) %>% 
   filter(!is.na(cluster)) %>% 
@@ -1365,13 +1376,7 @@ dev.off()
 ```
 
 ```{r}
-smoothed_zscoreparams <- M_t_analyte_withIS_smoothed %>% 
-  group_by(Compound.Name) %>% 
-  summarise(c.mean = mean(amt_ng_ptnorm_smooth), c.stdev = sd(amt_ng_ptnorm_smooth))
 
-M_t_analyte_withIS_smoothed.zscore <- M_t_analyte_withIS_smoothed %>% 
-  left_join(smoothed_zscoreparams) %>% 
-  mutate(amt_ng_ptnorm_smooth.zscore = (amt_ng_ptnorm_smooth-c.mean)/c.stdev)
 
 
 
@@ -1485,8 +1490,7 @@ cluster_all %>%
 ```{r}
 # h.clust.factors.z <- data.frame(cluster = c(1,2,3,4,6,5,7,8,9), cluster_factors = c("Factor A", "Factor B", "Factor C", "Factor D", "Factor F", "Factor E", "Factor G", "Factor H", "Factor I"), cluster_factor_types = c("Biogenic1", "Anthro1", "Mixed4", "Mixed2", "Mixed1", "Anthro2", "Mixed3", "Mixed5", "R-Btz"))
 library(forcats)
-h.clust.factors.z <- read_csv("Read_Files/Cluster_labels.csv") %>% 
-  mutate(cluster_factor_types.f = fct_reorder(cluster_factor_types, order))
+
 
 cluster_all %>% 
   left_join(h.clust.factors.z) %>% 
@@ -1549,6 +1553,9 @@ cluster_corr_infor <- cluster_corr_hclust %>%
 
 cluster_assignments <- read_csv("Read_Files/Cluster_Assignments_Manual_Check_SeaScape_2.csv") %>% 
   dplyr::select(Compound.Name, cluster_assigned)
+
+h.clust.factors <- h.clust.factors.z %>% 
+  dplyr::rename(cluster_assigned = cluster)
 
 comp_info_cluster_quant <- compiled_comp_info %>% 
   left_join(cluster_assignments) %>% 
@@ -1960,8 +1967,7 @@ bio.cor <- cor(bio_corr, use = "pairwise.complete.obs")
 
 write.csv(bio.cor, "correlation_inspection4.csv")
 
-h.clust.factors <- h.clust.factors.z %>% 
-  dplyr::rename(cluster_assigned = cluster)
+
 
 bio.cor.info <- read_csv("correlation_inspection_ed4_virus_hb_chla.csv")%>% 
   left_join(cluster_assignments) %>% 
@@ -2540,7 +2546,48 @@ M_t_analyte_withIS.hclust %>%
   filter(Compound.Name != "20200803_1535_blob_745_") %>% 
   ggplot(aes(x = r_date, y = amt_ng_ptnorm, fill = cluster_factor_types)) +
   geom_col(position = "stack")
+
+day.f <- M_t_analyte_withIS.hclust %>% 
+  filter(Filter_num == "UCB19_A_153" |Filter_num == "UCB19_A_156" ) %>% 
+  filter(!is.na(cluster_group)) %>% 
+  group_by(cluster_group) %>% 
+  summarise(tot_mass = sum(amt_ng_per_m3_air)) %>% 
+  dplyr::mutate(pct_total = .4*tot_mass/sum(day.f$tot_mass))
+
+day.l <- M_t_analyte_withIS.hclust %>% 
+  filter(Filter_num == "UCB19_A_196" |Filter_num == "UCB19_A_197" ) %>% 
+  filter(!is.na(cluster_group)) %>% 
+  group_by(cluster_group) %>% 
+  summarise(tot_mass = sum(amt_ng_per_m3_air)) %>% 
+  dplyr::mutate(pct_total = .4*tot_mass/sum(day.l$tot_mass))
+
 ```
+Benzoic acid traces
+```{r}
+
+ba.check <- M_t_analyte_withIS.hclust %>% 
+  filter(Compound.Name == "20200803_0949_blob_1273_"| 
+           Compound.Name == "20200803_0949_blob_900_"|
+           Compound.Name == "20200803_0949_blob_981_") 
+
+ba.check %>% 
+  ggplot(aes(x = r_date, y = amt_ng_per_m3_air, color = cluster_factor_types))+
+  geom_line()
+
+ba.check2 <- M_t_analyte_withIS.hclust %>% 
+  filter(Compound.Name == "20200803_0949_blob_1273_"| 
+           Compound.Name == "20200803_0949_blob_900_"|
+           Compound.Name == "20200803_0949_blob_981_") %>% 
+  group_by(r_date) %>% 
+  summarise(tot_mass = sum(amt_ng_per_m3_air))
+
+ba.check2 %>% 
+  ggplot(aes(x = r_date, y = tot_mass))+
+  geom_line()
+
+```
+
+
 Plotting mass spectra of interesting unknown biogenic compounds
 ```{r}
 unkbio_MS_o = read_csv(file = "Read_Files/Unk_bio_MS.csv")
