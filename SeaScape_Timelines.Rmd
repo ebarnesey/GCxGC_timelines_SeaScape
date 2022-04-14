@@ -2562,6 +2562,345 @@ day.l <- M_t_analyte_withIS.hclust %>%
   dplyr::mutate(pct_total = .4*tot_mass/sum(day.l$tot_mass))
 
 ```
+
+Plotting properties
+```{r}
+properties <- read_csv("Read_Files/Compiled_Compound_info_SeaScape.prop2_EBF.csv") %>% 
+  dplyr::select(Compound.Name, OSc_final, Cnum_final)
+
+Comp_info_prop <- comp_info_cluster_quant %>% 
+  left_join(properties)
+
+Comp_info_clust.n <- comp_info_cluster_quant %>% 
+  dplyr::select(Compound.Name, cluster_factor_types, cluster_factor_types.f, cluster_group)
+
+Comp_info_prop %>% 
+  filter(!is.na(cluster_group)) %>% 
+  ggplot(aes(x = Cnum_final, y = OSc_final, color = cluster_factor_types.f))+
+  geom_point()+
+  facet_grid(cluster_group ~ .) +
+  scale_color_manual(values = cols2[1:8], name = "")
+
+day.f.prop <- M_t_analyte_withIS.hclust %>% 
+  filter(Filter_num == "UCB19_A_153" |Filter_num == "UCB19_A_156" ) %>% 
+  filter(!is.na(cluster_group)) %>% 
+  group_by(Compound.Name) %>% 
+  summarise(avg_amt_ng_per_m3_air = mean(amt_ng_per_m3_air, na.rm = TRUE)) %>% 
+  left_join(properties) %>% 
+  left_join(Comp_info_clust.n)
+
+day.l.prop <- M_t_analyte_withIS.hclust %>% 
+  filter(Filter_num == "UCB19_A_196" |Filter_num == "UCB19_A_197" ) %>% 
+  filter(!is.na(cluster_group)) %>% 
+  group_by(Compound.Name) %>% 
+  summarise(avg_amt_ng_per_m3_air = mean(amt_ng_per_m3_air, na.rm = TRUE)) %>% 
+  left_join(properties)%>% 
+  left_join(Comp_info_clust.n)
+
+day.f.prop %>% 
+  ggplot(aes(x = Cnum_final, y = OSc_final, 
+             color = cluster_factor_types.f, size = (avg_amt_ng_per_m3_air)))+
+  geom_point()+
+  scale_color_manual(values = cols2[1:8], name = "")+
+  scale_size(name = "Concentration\nng/m3", range = c(2, 7))+
+  theme_bw(base_size = 14)+
+  xlab("Number of Carbons")+
+  ylab("OSc")+
+  xlim(5, 30)+
+  guides(size = FALSE, color = guide_legend(override.aes = list(size=3)))
+  # guides(color = guide_legend(order = 1), 
+  #             size = guide_legend(order = 2))
+
+prop.l1<- day.l.prop %>% 
+  ggplot(aes(x = Cnum_final, y = OSc_final, 
+             color = cluster_factor_types.f, size = (avg_amt_ng_per_m3_air)))+
+  geom_point()+
+  scale_color_manual(values = cols2[1:8], name = "")+
+  scale_size(name = "Concentration\nng/m3", range = c(2, 7))+
+  theme_bw(base_size = 14)+
+  xlab("Number of Carbons")+
+  ylab("OSc")+
+  xlim(5, 30)+
+  guides(size = FALSE, color = guide_legend(override.aes = list(size=3)))  
+  #guides(color = guide_legend(order = 1), 
+  #            size = guide_legend(order = 2))
+  
+prop.l1
+
+png("properties_trial1.png", width=7, height=4.5,
+    units="in", res=600, pointsize=12)
+prop.l1
+dev.off()
+
+
+```
+
+Making a video
+```{r}
+M_t_analyte_withIS.hclust.prop <- M_t_analyte_withIS.hclust %>% 
+  left_join(properties)
+
+bt_sum_bloom3.a <- bt_sum_bloom3 %>% 
+  arrange(r_date)
+
+plot_list.ss = list()
+for(i in 1:nrow(bt_sum_bloom3)){
+  #i = 40
+  #i = 39
+  date.tt <- bt_sum_bloom3.a$r_date[i]
+  
+  df.temp <- M_t_analyte_withIS.hclust.prop %>% 
+    filter(r_date == date.tt) %>% 
+    filter(OSc_final >-500)
+  
+  prop.t <- df.temp %>% 
+    ggplot(aes(x = Cnum_final, y = OSc_final, 
+             color = cluster_factor_types.f, size = (amt_ng_per_m3_air)))+
+    geom_point()+
+    scale_color_manual(values = cols2[1:8], name = "")+
+    scale_size(name = "Concentration\nng/m3", range = c(4, 12))+
+    theme_bw(base_size = 26)+
+    xlab("Number of Carbons")+
+    ylab("Carbon Oxidation State")+
+    ggtitle(date.tt)+
+    xlim(5, 30)+
+    ylim(-2.2, .5)+
+    guides(size = FALSE, color = guide_legend(override.aes = list(size=6)))  
+    
+  #prop.t
+  #   
+  #   
+  # #print(iop2.prop.t)
+  # 
+  # grouped.clust.ss.2 <- M_t_analyte_withIS.hclust.prop %>% 
+  #   group_by(r_date, cluster_factor_types.f) %>% 
+  #   summarise(ug_per_m3_air = sum(ug_per_m3_air, na.rm = TRUE)) %>% 
+  #   left_join(iop2.scale) %>% 
+  #   filter(r_date > bt_sum_iop2.a$r_date[s.i.iop2]) %>% 
+  #   filter(r_date < bt_sum_iop2.a$r_date[e.i.iop2]) %>% 
+  #   mutate(ug_per_m3_air.s = ug_per_m3_air/ scale.s)
+  # 
+  # grouped.clust.tl.2.t <- grouped.clust.tl.2 %>% 
+  #   filter(r_date == date.tt)
+  # 
+  # 
+  # 
+  # iop2.tl.t <- grouped.clust.tl.2%>% 
+  #   ggplot(aes(x = r_date, y = ug_per_m3_air.s, 
+  #            color = as.factor(cluster_group)))+
+  #   geom_line(size = 2)+
+  #   geom_point(data = grouped.clust.tl.2.t, aes(x = r_date, y = ug_per_m3_air.s, 
+  #                                               shape = cluster_group), 
+  #              color = "black", size = 4)+
+  #   scale_color_manual(name = "Event Influence\nClusters", values = c("green3", "orange", "grey35"), labels = c("Background/Biogenic", "Biomass Burning\n(/5)",
+  #                                      "Urban Plume"))+
+  #   ylab("Organic Mass (ug/m3)")+
+  #   xlab("")+
+  #   ggtitle("  ")+
+  #   guides(shape = FALSE)+
+  #   theme_bw(base_size = 20)
+  # 
+  # iop2.multi.t <- ggarrange(iop2.prop.t, iop2.tl.t, heights = c(8, 5), 
+  #         labels = c("A", "B"), nrow = 2, ncol = 1)
+  # 
+  # print(iop2.multi.t)
+  
+  plot_list.ss[[i]] = prop.t
+  
+  
+}
+
+for(i in 1:length(plot_list.ss)){
+  tt.name.t <- paste("Write_Files/Properties_Video/c", i,".png", sep = "")
+  
+  png(tt.name.t, width=16, height=9,
+    units="in", res=500, pointsize=2)
+    print(plot_list.ss[[i]])
+  dev.off() 
+  
+}
+```
+
+Video attempt 2 only samples that correspond to HB and chlor obs
+
+```{r}
+chla_hb.a <- chla_hb %>% 
+  arrange(r_date)
+
+plot_list.ss.a = list()
+for(i in 1:nrow(chla_hb.a)){
+  #i = 40
+  #i = 39
+  #i = 5
+  date.tt <- chla_hb.a$r_date[i]
+  
+  df.temp <- M_t_analyte_withIS.hclust.prop %>% 
+    filter(r_date == date.tt) %>% 
+    filter(OSc_final >-500)
+  
+  prop.t <- df.temp %>% 
+    ggplot(aes(x = Cnum_final, y = OSc_final, 
+             color = cluster_factor_types.f, size = (amt_ng_per_m3_air)))+
+    geom_point()+
+    scale_color_manual(values = cols2[1:8], name = "Cluster")+
+    scale_size(name = "Concentration\nng/m3", range = c(3, 11))+
+    theme_bw(base_size = 22)+
+    xlab("Number of Carbons")+
+    ylab("Carbon Oxidation State")+
+    #ggtitle(date.tt)+
+    ggtitle(paste("Submicron SSA Organic Composition\n", date.tt, sep = ""))+
+    #ggtitle("Submicron SSA Organic Composition")
+    xlim(5, 30)+
+    ylim(-2.2, .5)+
+    guides(size = FALSE, color = guide_legend(override.aes = list(size=6)))  
+    
+  prop.t
+
+
+  #print(iop2.prop.t)
+
+  # grouped.clust.ss.2 <- M_t_analyte_withIS.hclust.prop %>%
+  #   group_by(r_date, cluster_factor_types.f) %>%
+  #   summarise(ug_per_m3_air = sum(ug_per_m3_air, na.rm = TRUE)) %>%
+  #   left_join(iop2.scale) %>%
+  #   filter(r_date > bt_sum_iop2.a$r_date[s.i.iop2]) %>%
+  #   filter(r_date < bt_sum_iop2.a$r_date[e.i.iop2]) %>%
+  #   mutate(ug_per_m3_air.s = ug_per_m3_air/ scale.s)
+  # 
+  # grouped.clust.tl.2.t <- grouped.clust.tl.2 %>%
+  #   filter(r_date == date.tt)
+  chlahb_tp <- chla_hb.a %>% 
+    filter(r_date == date.tt)
+  
+
+
+
+  chla_hb.t <- chla_hb%>%
+    ggplot(aes(x = r_date, y = chla_norm, color = "A"))+
+    geom_line(size = 2)+
+    geom_line(aes(x = r_date, y = hb_norm, color = "B"), size = 2)+
+    geom_point(data = chlahb_tp, aes(x = r_date, y = chla_norm),
+               color = "green4", size = 6)+
+    geom_point(data = chlahb_tp, aes(x = r_date, y = hb_norm),
+               color = "blue3", size = 6)+
+    scale_color_manual(name = "Bloom\nIndicator", values = c("green3", "blue2"),
+                       labels = c("Chlorophyll-a", "Heterotrophic\nBacteria"))+
+    ylab("Normalized\nConcentration")+
+    xlab("")+
+    #ggtitle("  ")+
+    guides(shape = FALSE)+
+    theme_bw(base_size = 22)
+  
+  chla_hb.t
+
+  prop.multi.t <- ggarrange(prop.t, chla_hb.t, heights = c(8, 3.5),
+          labels = c("A", "B"), nrow = 2, ncol = 1, align = "v")
+
+  print(prop.multi.t)
+  
+  prop.multi.t
+  
+  plot_list.ss.a[[i]] = prop.multi.t
+  
+  
+}
+
+
+
+
+# png("properties_2panel.png", width=10, height=10,
+#     units="in", res=600, pointsize=12)
+# prop.multi.t
+# dev.off()
+
+
+for(i in 1:length(plot_list.ss.a)){
+  tt.name.t <- paste("Write_Files/Properties_Video2/d", i,".png", sep = "")
+  
+  png(tt.name.t, width=14, height=10,
+    units="in", res=500, pointsize=2)
+    print(plot_list.ss.a[[i]])
+  dev.off() 
+  
+}
+```
+
+
+
+```{r}
+first_day.p <- M_t_analyte_withIS.hclust.prop %>% 
+  filter(Filter_num == "UCB19_A_153") %>% 
+  
+    ggplot(aes(x = Cnum_final, y = OSc_final, 
+             color = cluster_factor_types.f, size = (amt_ng_per_m3_air)))+
+    geom_point()+
+    scale_color_manual(values = cols2[1:8], name = "")+
+    #scale_size(name = bquote('Concentration '(ng/m^3)), range = c(4, 12))+
+    scale_size(name = "Concentration\nng/m3", range = c(1.5, 7))+
+    theme_bw(base_size = 14)+
+    xlab("Number of Carbons")+
+    ylab("Carbon Oxidation State")+
+    ggtitle("First Day")+
+    xlim(5, 33)+
+    ylim(-2.2, .5)+
+    guides(size = FALSE, color = guide_legend(override.aes = list(size=3))) 
+    
+first_day.p
+
+last_day.p <- M_t_analyte_withIS.hclust.prop %>% 
+  filter(Filter_num == "UCB19_A_196") %>% 
+  
+    ggplot(aes(x = Cnum_final, y = OSc_final, 
+             color = cluster_factor_types.f, size = (amt_ng_per_m3_air)))+
+    geom_point()+
+    scale_color_manual(values = cols2[1:8], name = "")+
+    #scale_size(name = bquote('Concentration '(ng/m^3)), range = c(4, 12))+
+    scale_size(name = "Concentration\nng/m3", range = c(1.5, 7))+
+    theme_bw(base_size = 14)+
+    xlab("Number of Carbons")+
+    ylab("Carbon Oxidation State")+
+    ggtitle("Last Day")+
+    xlim(5, 33)+
+    ylim(-2.2, .5)+
+    guides(size = FALSE, color = guide_legend(override.aes = list(size=3))) 
+    
+last_day.p
+
+mid_day.p <- M_t_analyte_withIS.hclust.prop %>% 
+  filter(Filter_num == "UCB19_A_181") %>% 
+  
+    ggplot(aes(x = Cnum_final, y = OSc_final, 
+             color = cluster_factor_types.f, size = (amt_ng_per_m3_air)))+
+    geom_point()+
+    scale_color_manual(values = cols2[1:8], name = "")+
+    #scale_size(name = bquote('Concentration '(ng/m^3)), range = c(4, 12))+
+    scale_size(name = "Concentration\nng/m3", range = c(1.5, 7))+
+    theme_bw(base_size = 14)+
+    xlab("Number of Carbons")+
+    ylab("Carbon Oxidation State")+
+    ggtitle("Mid Bloom")+
+    xlim(5, 33)+
+    ylim(-2.2, .5)+
+    guides(size = FALSE, color = guide_legend(override.aes = list(size=3))) 
+    
+mid_day.p
+
+prop.tiles <- ggarrange(first_day.p, mid_day.p, last_day.p, heights = c(3, 3, 3), 
+          labels = c("A", "B", "C"),
+          ncol = 1, nrow = 3, align = "v")
+
+prop.tiles
+
+png("proptiles.png", width=7, height=10,
+    units="in", res=600, pointsize=12)
+prop.tiles
+dev.off()
+
+
+
+```
+
+
 Benzoic acid traces
 ```{r}
 
