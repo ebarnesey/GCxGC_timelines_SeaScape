@@ -255,7 +255,7 @@ M_t_all_analytes_volcount <- M_t_all_analytes %>%
 # tracking the number of all analutes in
 M_t_all_analytes_ncount <- M_t_all_analytes %>% 
   count(File_num) %>% 
-  rename(total_num_analyte = n)
+  dplyr::rename(total_num_analyte = n)
 
 M_t_match_analytes_volcount <- M_t_analyte_unique %>% 
   group_by(File_num) %>% 
@@ -263,7 +263,7 @@ M_t_match_analytes_volcount <- M_t_analyte_unique %>%
 
 M_t_match_analytes_ncount <- M_t_analyte_unique %>% 
   count(File_num) %>% 
-  rename(total_num_analyte_match = n)
+  dplyr::rename(total_num_analyte_match = n)
 
 M_t_analyte_summary <- M_t_all_analytes_volcount %>% 
   left_join(M_t_all_analytes_ncount) %>% 
@@ -274,17 +274,17 @@ M_t_analyte_summary <- M_t_all_analytes_volcount %>%
 
 compound_pop <- M_t_analyte_unique %>% 
   count(Compound.Name) %>% 
-  rename(comp.n = n) %>% 
+  dplyr::rename(comp.n = n) %>% 
   mutate(pct_of_samp = (comp.n/max(comp.n)*100))
 
 M_t_analyte_count <- M_t_all_analytes %>% 
   count(File_num) %>%
-  rename(total_num_analyte = n)
+  dplyr::rename(total_num_analyte = n)
 # 
 # # counting the number of unique analytes in each image
 num_analyte_unique <- M_t_analyte_unique %>%
   count(File_num) %>%
-  rename(unique.analyte = n)
+  dplyr::rename(unique.analyte = n)
 
 # counting the number based percent of compounds being traced in all 
 perct_comps_traced <- num_analyte_unique %>% 
@@ -299,7 +299,7 @@ M_t_analyte_unique <- M_t_analyte_unique %>% left_join(num_analyte_unique)
 
 compound_pop <- M_t_analyte_unique %>% 
   count(Compound.Name) %>% 
-  rename(comp.n = n) %>% 
+  dplyr::rename(comp.n = n) %>% 
   mutate(pct_of_samp = (comp.n/max(comp.n)*100))
 
 table(compound_pop$comp.n)
@@ -481,7 +481,7 @@ SeaScape_cumsum_raw <- M_t_analyte_unique %>%
   arrange(desc(raw_cumsum))
 
 
-
+write.csv(SeaScape_cumsum_raw, "Write_Files/SeaScape_cumsum_raw.csv")
 
 
 M_t_analyte_unique_info <- M_t_analyte_unique %>% 
@@ -1273,6 +1273,8 @@ df_long <- M_t_analyte_withIS_smoothed %>%
 
 df_list <- as.list(utils::unstack(df_long, amt_ng_ptnorm_smooth ~ Compound.Name))
 
+# ttt <- utils::unstack(df_long, amt_ng_ptnorm_smooth ~ Compound.Name)
+
 df_list_z <- dtwclust::zscore(df_list)
 
 set.seed(20)
@@ -1297,6 +1299,8 @@ final.clust <- cluster_dtw_h[[8]]
 plot(final.clust, type = "sc")
 
 1
+cvi(cluster_dtw_h[[2]], type = "valid")
+cvi(cluster_dtw_h[[3]], type = "valid")
 cvi(cluster_dtw_h[[4]], type = "valid")
 cvi(cluster_dtw_h[[5]], type = "valid")
 cvi(cluster_dtw_h[[6]], type = "valid")
@@ -1308,6 +1312,9 @@ cvi(cluster_dtw_h[[10]], type = "valid")
 sil.d <- c(.303, .297, .282, .275, .218, .225, .227)
 sil.i <- c(4, 5, 6, 7, 8, 9, 10)
 sil.plot <- data.frame(n_cluster = sil.i, sil = sil.d)
+
+# NOTE: should have done silhouette max instead of min, should be 7 clusters not 8
+#https://rdrr.io/cran/dtwclust/man/cvi.html
 
 sil.plot.p <- sil.plot %>% 
   ggplot(aes(x = n_cluster, y = sil))+
@@ -1325,7 +1332,29 @@ png("silhouette.index.png", width=6, height=5,
 sil.plot.p
 dev.off()
 
-# from this appears that 8 clusters is ideal, based on maximizing Sil
+
+
+# from this appears that 7 clusters is ideal, based on maximizing Sil. I screwed this up but recombined the split factors later
+
+cvi.ind <- read_csv("Read_Files/cvi_indicators.csv") %>% 
+  filter(Clusters > 3)
+
+db.plot.p <- cvi.ind %>% 
+  ggplot(aes(x = Clusters, y = Dbstar))+
+  geom_line()+
+  geom_point()+
+  #ylim(.2, .35)+
+  xlab("Number of Clusters")+
+  ylab("Modified Davies-Bouldin Index")+
+  theme_bw(base_size = 14)
+
+db.plot.p
+
+png("dbstar.index.png", width=6, height=5,
+    units="in", res=600, pointsize=12)
+db.plot.p
+dev.off()
+
 ```
 
 
@@ -1349,7 +1378,7 @@ M_t_analyte_withIS_smoothed.zscore <- M_t_analyte_withIS_smoothed %>%
   left_join(smoothed_zscoreparams) %>% 
   mutate(amt_ng_ptnorm_smooth.zscore = (amt_ng_ptnorm_smooth-c.mean)/c.stdev)
 
-h.clust.factors.z <- read_csv("Read_Files/Cluster_labels.csv") %>% 
+h.clust.factors.z <- read_csv("Read_Files/Cluster_labels.2.csv") %>% 
   mutate(cluster_factor_types.f = fct_reorder(cluster_factor_types, order))
 
 cluster_vis <- M_t_analyte_withIS_smoothed.zscore %>% 
@@ -1368,7 +1397,7 @@ cluster_vis.p <- cluster_vis %>%
 cluster_vis.p
   
   
-png("clustervis.png", width=8, height=6,
+png("clustervis2.png", width=8, height=6,
     units="in", res=600, pointsize=12)
 cluster_vis.p
 dev.off()
@@ -1478,6 +1507,7 @@ cluster_8 %>%
 cluster_all <- M_t_analyte_withIS_smoothed.zscore %>%
   left_join(clustered_data_tidy) %>% 
   filter(!is.na(cluster)) %>% 
+  dplyr::mutate(cluster = ifelse(cluster == 7, 2, cluster)) %>% 
   group_by(r_date, cluster) %>% 
   summarise(cluster_vol.z = mean(amt_ng_ptnorm_smooth.zscore))
 
@@ -1562,7 +1592,7 @@ comp_info_cluster_quant <- compiled_comp_info %>%
   left_join(SeaScape_normalized_cumsum.q) %>% 
   left_join(h.clust.factors)
 
-write.csv(comp_info_cluster_quant, "Write_Files/Compiled_Compound_Info_clusters_quant.csv")
+#write.csv(comp_info_cluster_quant, "Write_Files/Compiled_Compound_Info_clusters_quant.csv")
 
 ```
 
@@ -1587,18 +1617,24 @@ gg_color_hue <- function(n) {
   hcl(h = hues, l = 65, c = 100)[1:n]
 }
 
-n = 8
+n = 7
 #cols = gg_color_hue(n)
 
 #cols = c("#CC6677", "#661100", "#882255",  "#44AA99", "#117733",  "#88CCEE","#332288","#6699CC")
+
 cols = c("#CC6677", "#661100", "#CC3333",  "#669900", "#336600",  "#9966FF","#660066","#9933CC")
+colsb = c("#CC6677", "#661100",  "#669900", "#336600",  "#9966FF","#660066","#9933CC")
 
 cols2 = c("#CC6677", "#661100", "#CC3333",  "#9966FF","#660066","#9933CC", "#669900", "#336600")
+cols2b = c("#CC6677", "#661100",  "#9966FF","#660066","#9933CC", "#669900", "#336600")
          
           
 
 dev.new(width = 4, height = 4)
 plot(1:n, pch = 16, cex = 2, col = cols)
+
+dev.new(width = 4, height = 4)
+plot(1:n, pch = 16, cex = 2, col = colsb)
 ```
 
 ```{r}
@@ -1632,7 +1668,7 @@ pan<- ggplot()+
   scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))+
   xlab("")+
   #guides(fill=guide_legend(nrow=2,byrow=TRUE))+
-  scale_color_manual(values = cols[1:3])+
+  scale_color_manual(values = cols[1:2])+
   scale_fill_manual(values = c("darkgreen", "blue4"), labels = c( "Peak Chlorophyll", "Peak Bacteria"))+
   guides(fill = guide_legend(order = 1),color = guide_legend(order = 2))
 
@@ -1665,7 +1701,7 @@ pan2<- ggplot()+
   ) +
   xlab("")+
   #guides(fill=guide_legend(nrow=2,byrow=TRUE))+
-  scale_color_manual(values = cols[1:3])+
+  scale_color_manual(values = cols[1:2])+
   scale_fill_manual(values = c("darkgreen", "blue4"), labels = c( "Peak Chlorophyll", "Peak Bacteria"))+
   guides(fill = guide_legend(order = 1),color = guide_legend(order = 2))
 
@@ -1907,7 +1943,7 @@ bioi <- ggarrange(pan.f, pbio.f, pmix.f, chla_hb.f, heights = c(3, 3, 3, 3.2),
 
 bioi
 
-png("bioind10.png", width=6, height=14,
+png("bioind12.png", width=6, height=14,
     units="in", res=600, pointsize=12)
 bioi
 dev.off()
@@ -1967,9 +2003,9 @@ bio.cor <- cor(bio_corr, use = "pairwise.complete.obs")
 
 write.csv(bio.cor, "correlation_inspection4.csv")
 
+# note need to finish updating the figures
 
-
-bio.cor.info <- read_csv("correlation_inspection_ed4_virus_hb_chla.csv")%>% 
+bio.cor.info <- read_csv("Read_Files/correlation_inspection_ed4_virus_hb_chla.csv")%>% 
   left_join(cluster_assignments) %>% 
   left_join(h.clust.factors) %>% 
   left_join(SeaScape_normalized_cumsum.q) %>% 
@@ -1977,7 +2013,7 @@ bio.cor.info <- read_csv("correlation_inspection_ed4_virus_hb_chla.csv")%>%
 
 table(bio.cor.info$cluster_factor_types)
 
-write.csv(bio.cor.info, "correlation_info_inspection4.csv")
+write.csv(bio.cor.info, "Write_Files/correlation_info_inspection4.csv")
 ```
 
 
@@ -2128,7 +2164,7 @@ bio.cor.info.sum %>%
     size = 12, hjust = 1))+
   guides(color = FALSE)
 
-a <- cols2
+a <- cols2b
 
 bio.c.plot <- bio.cor.info.sum %>% 
   left_join(h.clust.factors.z) %>% 
@@ -2152,7 +2188,7 @@ bio.c.plot <- bio.cor.info.sum %>%
 
 bio.c.plot
 
-png("bio_cor_plot5.png", width=5.5, height=3.5,
+png("bio_cor_plot6.png", width=5.5, height=3.5,
     units="in", res=600, pointsize=12)
 bio.c.plot
 dev.off()
@@ -2352,6 +2388,64 @@ Dia.neg.plot %>%
 
 ```
 
+Making pretty figure of biological activity
+
+```{r}
+
+bio_spec.phyto <- bio_spec %>% 
+  filter(!is.na(Diatom_Dominated_Aggregates)) %>% 
+  dplyr::select("r_date", "Diatom_Dominated_Aggregates", "Diatoms", "Microzooplankton", 
+                "Mixed_Aggregates", "Dinoflagellates", "Haptophytes") %>% 
+  dplyr::mutate(Other_Phyto = Mixed_Aggregates+ Dinoflagellates+Haptophytes) %>% 
+  dplyr::select("r_date", "Diatom_Dominated_Aggregates", "Diatoms", "Microzooplankton", 
+                "Other_Phyto") %>% 
+  dplyr::mutate(tot_Phyto = Diatom_Dominated_Aggregates + Diatoms +
+                  Microzooplankton + Other_Phyto)
+
+tot_Phyto.max <- max(bio_spec.phyto$tot_Phyto)
+
+bio_spec.phyto.n <- bio_spec.phyto%>% 
+  dplyr::mutate(DDA_norm = Diatom_Dominated_Aggregates/tot_Phyto.max) %>% 
+  dplyr::mutate(Diatoms_norm = Diatoms/tot_Phyto.max) %>%
+  dplyr::mutate(Mzoo_norm = Microzooplankton/tot_Phyto.max) %>% 
+  dplyr::mutate(Other_norm = Other_Phyto/tot_Phyto.max) %>%
+  dplyr::select("r_date", "DDA_norm", "Diatoms_norm", "Mzoo_norm", "Other_norm") %>% 
+  gather(key = "phyto_cat", value = "normalized_conc", -r_date)
+  
+
+phyto.p <- bio_spec.phyto.n %>% 
+  ggplot()+
+  geom_col(aes(x = r_date, y = normalized_conc, fill = phyto_cat))+
+  geom_line(data = bio_spec, aes(x = r_date, y = HB_cells_L/max(bio_spec$HB_cells_L),
+                                 color = "HB"), size = 2)+
+  geom_line(data = bio_spec, aes(x = r_date, y = Virus_L/max(bio_spec$Virus_L), 
+                                 color = "Viruses"), size = 2)+
+  geom_line(data = bio_spec, aes(x = r_date, y = Chlor_a/max(bio_spec$Chlor_a),
+                                 color= "Chlorophyll-a"), size = 2)+
+  scale_fill_manual(name = "Phytoplankton\nPhenotype", 
+                    labels = c("Diatom Dominates\nAggregates", "Diatoms", 
+                               "Microzooplankton", "Other"), 
+                    values = c("grey80", "grey 60", "grey 40", "grey20"))+
+  scale_color_manual(name = "Other Bloom Indicators", 
+                     labels = c("Chlorophyll-a", "Heterotrophic\nBacteria", "Viruses"),
+                     values = c("green3", "blue2", "red4"))+
+  theme_bw(base_size = 14)+
+  ylab("Normalized Concentration in Water")+
+  xlab("")
+
+phyto.p
+
+png("phyto.p.5.png", width=8, height=5,
+    units="in", res=600, pointsize=12)
+phyto.p
+dev.off()
+png()
+
+
+
+```
+
+
 Now looking at knowledge of the different clusters
 
 ```{r}
@@ -2463,7 +2557,7 @@ carbon_pool <- M_t_analyte_withIS.hclust %>%
   xlab("")+
   ylab("Mass Fraction")+
   ggtitle("Submicron Sea Spray Aerosol \n Carbon Pool Dynamics")+
-  scale_fill_manual(values = cols[1:8])+
+  scale_fill_manual(values = colsb[1:7])+
   theme(plot.title = element_text(size = 18, hjust = .5), legend.text = element_text(size = 14), legend.title=element_text(size=14), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title.y = element_text(size = 16))+
   scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))
   
@@ -2477,7 +2571,7 @@ carbon_pool2 <- M_t_analyte_withIS.hclust %>%
   xlab("")+
   ylab("Mass Fraction (Recovered)")+
   ggtitle("Submicron Sea Spray Aerosol \n Carbon Pool Dynamics")+
-  scale_fill_manual(values = cols2[1:8], name = "")+
+  scale_fill_manual(values = cols2b[1:7], name = "")+
   theme(plot.title = element_text(size = 18, hjust = .5), legend.text = element_text(size = 14), legend.title=element_text(size=14), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title.y = element_text(size = 16))+
   scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))
   
@@ -2491,14 +2585,14 @@ carbon_pool3 <- M_t_analyte_withIS.hclust %>%
   xlab("")+
   ylab("Mass Fraction (Recovered)")+
   ggtitle("Submicron Sea Spray Aerosol \n Carbon Pool Dynamics")+
-  scale_fill_manual(values = cols2[1:8], name = "")+
+  scale_fill_manual(values = cols2b[1:7], name = "")+
   theme(plot.title = element_text(size = 18, hjust = .5), legend.text = element_text(size = 14), legend.title=element_text(size=14), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title.y = element_text(size = 16))+
   scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))
   
 
 carbon_pool3
 
-png("carbon_pool4.png", width=6, height=4.5,
+png("carbon_pool5.png", width=6, height=4.5,
     units="in", res=600, pointsize=12)
 carbon_pool2
 dev.off()
@@ -2511,7 +2605,7 @@ carbon_pool_nodiiso <- M_t_analyte_withIS.hclust %>%
   xlab("")+
   ylab("Mass Fraction (Recovered)")+
   ggtitle("Submicron Sea Spray Aerosol \n Carbon Pool Dynamics")+
-  scale_fill_manual(values = cols[1:8], name = "")+
+  scale_fill_manual(values = colsb[1:7], name = "")+
   theme(plot.title = element_text(size = 18, hjust = .5), legend.text = element_text(size = 14), legend.title=element_text(size=14), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title.y = element_text(size = 16))+
   scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))
   
@@ -2521,7 +2615,7 @@ carbon_pool_nodiiso
 
 M_t_analyte_withIS.hclust %>% 
   ggplot(aes(x = r_date, y = amt_ng_ptnorm, fill = cluster_factor_types)) +
-  scale_fill_manual(values = cols[1:8])+
+  scale_fill_manual(values = colsb[1:7])+
   geom_col(position = "stack")
 
 cp.si <- M_t_analyte_withIS.hclust %>% 
@@ -2533,11 +2627,11 @@ cp.si <- M_t_analyte_withIS.hclust %>%
   #ylab("Concentration (ng/m3)")+
   ylab(bquote('Concentration '(ng/m^3)))+
   ggtitle("Submicron Sea Spray Aerosol \n Carbon Pool Dynamics")+
-  scale_fill_manual(values = cols2[1:8], name = "")+
+  scale_fill_manual(values = cols2b[1:7], name = "")+
   theme(plot.title = element_text(size = 18, hjust = .5), legend.text = element_text(size = 14), legend.title=element_text(size=14), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title.y = element_text(size = 16))+
   scale_x_datetime(date_breaks = "6 days", labels = date_format("%b %d"))
 
-png("carbon_pool_forsi.png", width=6, height=4.5,
+png("carbon_pool_forsi2.png", width=6, height=4.5,
     units="in", res=600, pointsize=12)
 cp.si
 dev.off()
@@ -2546,8 +2640,17 @@ M_t_analyte_withIS.hclust %>%
   filter(Compound.Name != "20200803_1535_blob_745_") %>% 
   ggplot(aes(x = r_date, y = amt_ng_ptnorm, fill = cluster_factor_types)) +
   geom_col(position = "stack")
+```
 
+
+```{r}
 day.f <- M_t_analyte_withIS.hclust %>% 
+  filter(Filter_num == "UCB19_A_153" |Filter_num == "UCB19_A_156" ) %>% 
+  filter(!is.na(cluster_group)) %>% 
+  group_by(cluster_group) %>% 
+  summarise(tot_mass = sum(amt_ng_per_m3_air))
+
+day.f1 <- M_t_analyte_withIS.hclust %>% 
   filter(Filter_num == "UCB19_A_153" |Filter_num == "UCB19_A_156" ) %>% 
   filter(!is.na(cluster_group)) %>% 
   group_by(cluster_group) %>% 
@@ -2558,8 +2661,89 @@ day.l <- M_t_analyte_withIS.hclust %>%
   filter(Filter_num == "UCB19_A_196" |Filter_num == "UCB19_A_197" ) %>% 
   filter(!is.na(cluster_group)) %>% 
   group_by(cluster_group) %>% 
+  summarise(tot_mass = sum(amt_ng_per_m3_air))
+
+day.l1 <- M_t_analyte_withIS.hclust %>% 
+  filter(Filter_num == "UCB19_A_196" |Filter_num == "UCB19_A_197" ) %>% 
+  filter(!is.na(cluster_group)) %>% 
+  group_by(cluster_group) %>% 
   summarise(tot_mass = sum(amt_ng_per_m3_air)) %>% 
   dplyr::mutate(pct_total = .4*tot_mass/sum(day.l$tot_mass))
+
+day.f1 <- M_t_analyte_withIS.hclust %>% 
+  filter(Filter_num == "UCB19_A_153" |Filter_num == "UCB19_A_156" ) %>% 
+  filter(!is.na(cluster_group)) %>% 
+  group_by(cluster_group) %>% 
+  summarise(tot_mass = sum(amt_ng_per_m3_air)) %>% 
+  dplyr::mutate(pct_total = .4*tot_mass/sum(day.f$tot_mass))
+
+day.l1 <- M_t_analyte_withIS.hclust %>% 
+  filter(Filter_num == "UCB19_A_196" |Filter_num == "UCB19_A_197" ) %>% 
+  filter(!is.na(cluster_group)) %>% 
+  group_by(cluster_group) %>% 
+  summarise(tot_mass = sum(amt_ng_per_m3_air)) %>% 
+  dplyr::mutate(pct_total = .4*tot_mass/sum(day.l$tot_mass))
+
+oil_s <- read_csv("Read_Files/Oil-Compounds.csv")
+
+oil.t <- M_t_analyte_withIS.hclust %>% 
+  filter(Filter_num == "UCB19_A_153" |Filter_num == "UCB19_A_156" ) %>% 
+  left_join(oil_s) %>% 
+  group_by(cluster_factor_types, is_oil) %>% 
+  summarise(mass.s = sum(amt_ng_per_m3_air))
+
+
+
+# oil.t.a <- oil.t %>% 
+#   filter(cluster_fac)
+
+
+suns_s <- read_csv("Read_Files/Sunscreen_cpnds.csv")
+
+suns.t <- M_t_analyte_withIS.hclust %>% 
+  filter(Filter_num == "UCB19_A_153" |Filter_num == "UCB19_A_156" ) %>% 
+  left_join(suns_s) %>% 
+  group_by(cluster_factor_types, is_suns) %>% 
+  summarise(mass.s = sum(amt_ng_per_m3_air))
+
+suns.t2 <- M_t_analyte_withIS.hclust %>% 
+  filter(Filter_num == "UCB19_A_153" |Filter_num == "UCB19_A_156" ) %>% 
+  left_join(suns_s) %>% 
+  group_by(cluster_group, is_suns) %>% 
+  summarise(mass.s = sum(amt_ng_per_m3_air))
+
+suns.t3 <- M_t_analyte_withIS.hclust %>% 
+  filter(Filter_num == "UCB19_A_153" |Filter_num == "UCB19_A_156" ) %>% 
+  left_join(suns_s) %>% 
+  group_by(is_suns) %>% 
+  summarise(mass.s = sum(amt_ng_per_m3_air, na.rm = TRUE))
+
+pah_s <- read_csv("Read_Files/PAH_compounds.csv")
+
+pah.t <- M_t_analyte_withIS.hclust %>% 
+  filter(Filter_num == "UCB19_A_153" |Filter_num == "UCB19_A_156" ) %>% 
+  left_join(pah_s) %>% 
+  group_by(cluster_factor_types, is_PAH) %>% 
+  summarise(mass.s = sum(amt_ng_per_m3_air))
+
+pah.t2 <- M_t_analyte_withIS.hclust %>% 
+  #filter(Filter_num == "UCB19_A_153" |Filter_num == "UCB19_A_156" ) %>% 
+  left_join(pah_s) %>% 
+  filter(is_PAH == TRUE) #%>% 
+  #dplyr::select(Compound.Name, cluster_group)
+  # group_by(cluster_group, is_PAH) %>% 
+  # summarise(mass.s = sum(amt_ng_per_m3_air))
+
+pah.t2 %>% 
+  ggplot(aes(x = r_date, y = amt_ng_per_m3_air, color = Compound.Name))+
+  geom_line()
+
+pah.t3 <- M_t_analyte_withIS.hclust %>% 
+  filter(Filter_num == "UCB19_A_153" |Filter_num == "UCB19_A_156" ) %>% 
+  left_join(pah_s) %>% 
+  filter(is_PAH == TRUE) %>% 
+  group_by(name) %>% 
+  summarise(mass.s = sum(amt_ng_per_m3_air, na.rm = TRUE))
 
 ```
 
@@ -2579,7 +2763,7 @@ Comp_info_prop %>%
   ggplot(aes(x = Cnum_final, y = OSc_final, color = cluster_factor_types.f))+
   geom_point()+
   facet_grid(cluster_group ~ .) +
-  scale_color_manual(values = cols2[1:8], name = "")
+  scale_color_manual(values = cols2b[1:7], name = "")
 
 day.f.prop <- M_t_analyte_withIS.hclust %>% 
   filter(Filter_num == "UCB19_A_153" |Filter_num == "UCB19_A_156" ) %>% 
@@ -2601,7 +2785,7 @@ day.f.prop %>%
   ggplot(aes(x = Cnum_final, y = OSc_final, 
              color = cluster_factor_types.f, size = (avg_amt_ng_per_m3_air)))+
   geom_point()+
-  scale_color_manual(values = cols2[1:8], name = "")+
+  scale_color_manual(values = cols2b[1:7], name = "")+
   scale_size(name = "Concentration\nng/m3", range = c(2, 7))+
   theme_bw(base_size = 14)+
   xlab("Number of Carbons")+
@@ -2615,7 +2799,7 @@ prop.l1<- day.l.prop %>%
   ggplot(aes(x = Cnum_final, y = OSc_final, 
              color = cluster_factor_types.f, size = (avg_amt_ng_per_m3_air)))+
   geom_point()+
-  scale_color_manual(values = cols2[1:8], name = "")+
+  scale_color_manual(values = cols2b[1:7], name = "")+
   scale_size(name = "Concentration\nng/m3", range = c(2, 7))+
   theme_bw(base_size = 14)+
   xlab("Number of Carbons")+
@@ -2627,7 +2811,7 @@ prop.l1<- day.l.prop %>%
   
 prop.l1
 
-png("properties_trial1.png", width=7, height=4.5,
+png("properties_trial2.png", width=7, height=4.5,
     units="in", res=600, pointsize=12)
 prop.l1
 dev.off()
@@ -2834,7 +3018,7 @@ first_day.p <- M_t_analyte_withIS.hclust.prop %>%
     ggplot(aes(x = Cnum_final, y = OSc_final, 
              color = cluster_factor_types.f, size = (amt_ng_per_m3_air)))+
     geom_point()+
-    scale_color_manual(values = cols2[1:8], name = "")+
+    scale_color_manual(values = cols2b[1:7], name = "")+
     #scale_size(name = bquote('Concentration '(ng/m^3)), range = c(4, 12))+
     scale_size(name = "Concentration\nng/m3", range = c(1.5, 7))+
     theme_bw(base_size = 14)+
@@ -2853,7 +3037,7 @@ last_day.p <- M_t_analyte_withIS.hclust.prop %>%
     ggplot(aes(x = Cnum_final, y = OSc_final, 
              color = cluster_factor_types.f, size = (amt_ng_per_m3_air)))+
     geom_point()+
-    scale_color_manual(values = cols2[1:8], name = "")+
+    scale_color_manual(values = cols2b[1:7], name = "")+
     #scale_size(name = bquote('Concentration '(ng/m^3)), range = c(4, 12))+
     scale_size(name = "Concentration\nng/m3", range = c(1.5, 7))+
     theme_bw(base_size = 14)+
@@ -2872,7 +3056,7 @@ mid_day.p <- M_t_analyte_withIS.hclust.prop %>%
     ggplot(aes(x = Cnum_final, y = OSc_final, 
              color = cluster_factor_types.f, size = (amt_ng_per_m3_air)))+
     geom_point()+
-    scale_color_manual(values = cols2[1:8], name = "")+
+    scale_color_manual(values = cols2b[1:7], name = "")+
     #scale_size(name = bquote('Concentration '(ng/m^3)), range = c(4, 12))+
     scale_size(name = "Concentration\nng/m3", range = c(1.5, 7))+
     theme_bw(base_size = 14)+
@@ -2891,7 +3075,7 @@ prop.tiles <- ggarrange(first_day.p, mid_day.p, last_day.p, heights = c(3, 3, 3)
 
 prop.tiles
 
-png("proptiles.png", width=7, height=10,
+png("proptiles2.png", width=7, height=10,
     units="in", res=600, pointsize=12)
 prop.tiles
 dev.off()
